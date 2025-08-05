@@ -94,10 +94,10 @@ export default function LandingPage() {
                       <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-800/10 to-purple-100/10 flex items-center justify-center">
                         <Icon className="h-8 w-8 text-purple-800 dark:text-purple-100" />
                       </div>
-                      <CardTitle className="">{feature.title}</CardTitle>
+                      <CardTitle className="text-white text-2xl">{feature.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <CardDescription className="text-base">{feature.description}</CardDescription>
+                      <CardDescription className="text-white text-md">{feature.description}</CardDescription>
                     </CardContent>
                   </Card>
                 </div>

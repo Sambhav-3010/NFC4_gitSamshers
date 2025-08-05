@@ -124,6 +124,7 @@ export default function MarketplacePage() {
       router.push("/auth/login")
       return
     }
+
     setUserRole(role)
     setUserEmail(email)
   }, [router])
