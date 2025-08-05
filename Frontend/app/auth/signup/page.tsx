@@ -113,22 +113,22 @@ export default function SignupPage() {
   };
 
   const handleGoogleLogin = async () => {
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
-      console.log("User:", user);
-
-      // Optional: save user info in localStorage or context
-      if (typeof window !== "undefined") {
-        localStorage.setItem("isAuthenticated", "true");
-        localStorage.setItem("userEmail", user.email || "");
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        console.log("User:", user);
+        
+        if (typeof window !== "undefined") {
+          localStorage.setItem("isAuthenticated", "true");
+          localStorage.setItem("userEmail", user.email || "");
+          localStorage.setItem("userName", user.displayName || "");
+        }
+  
+        router.push("/profile");
+      } catch (error) {
+        console.error("Popup login error:", error);
       }
-
-      router.push("/profile");
-    } catch (error) {
-      console.error("Popup login error:", error);
-    }
-  };
+    };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
