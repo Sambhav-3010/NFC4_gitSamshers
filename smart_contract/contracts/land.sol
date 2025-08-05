@@ -332,7 +332,6 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     {
         require(lands[id].isShared, "land not shared");
         _safeTransferFrom(msg.sender, to, id, amount, "");
-        
     }
 
     /* ───── defragment ───── */
@@ -389,9 +388,87 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         );
     }
 
-    /* ─────────────── REMOVED: Manual role management functions ─────────────── */
-    // All manual role granting/revoking functions have been removed
-    // Users can only get roles through the auto-role system
+    /* ─────────────── NEW: PUBLIC MARKETPLACE FUNCTIONS ─────────────── */
+    
+    /// PUBLIC function for marketplace viewing - no authentication required
+    /// This allows anyone to browse properties without connecting wallet
+    function getMarketplaceDetails(uint256 id)
+        external
+        view
+        landExists(id)
+        returns (
+            string memory propertyAddress,
+            uint256 totalLandArea,
+            string memory propertyName,
+            bool forSale,
+            uint256 wholePrice,
+            bool isShared,
+            uint256 totalShares,
+            uint256 availableShares,
+            uint256 pricePerShare
+        )
+    {
+        Land memory land = lands[id];
+        return (
+            land.propertyAddress,
+            land.totalLandArea,
+            land.propertyName,
+            land.forSale,
+            land.wholePrice,
+            land.isShared,
+            land.totalShares,
+            land.availableShares,
+            land.pricePerShare
+        );
+    }
+
+    /// Get all property IDs for marketplace browsing
+    function getAllPropertyIds() 
+        external 
+        view 
+        returns (uint256[] memory propertyIds) 
+    {
+        uint256 totalProperties = _tokenIdCounter - 1;
+        uint256[] memory ids = new uint256[](totalProperties);
+        
+        for (uint256 i = 1; i <= totalProperties; i++) {
+            ids[i-1] = i;
+        }
+        
+        return ids;
+    }
+
+    /// Get only properties that are for sale (marketplace filter)
+    function getPropertiesForSale() 
+        external 
+        view 
+        returns (uint256[] memory forSaleIds) 
+    {
+        uint256 totalProperties = _tokenIdCounter - 1;
+        uint256[] memory tempIds = new uint256[](totalProperties);
+        uint256 forSaleCount = 0;
+        
+        // First pass: count and collect for-sale properties
+        for (uint256 i = 1; i <= totalProperties; i++) {
+            if (lands[i].forSale) {
+                tempIds[forSaleCount] = i;
+                forSaleCount++;
+            }
+        }
+        
+        // Create correctly sized array
+        forSaleIds = new uint256[](forSaleCount);
+        for (uint256 i = 0; i < forSaleCount; i++) {
+            forSaleIds[i] = tempIds[i];
+        }
+        
+        return forSaleIds;
+    }
+
+    /// Get total number of registered properties
+    function getTotalProperties() external view returns (uint256) {
+        return _tokenIdCounter - 1;
+    }
 
     /* ─────────────── Helper functions ─────────────── */
     
