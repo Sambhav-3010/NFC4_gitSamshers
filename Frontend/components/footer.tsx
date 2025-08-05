@@ -3,22 +3,22 @@ import { Building2, Github, Twitter, Linkedin } from "lucide-react"
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-background">
-      <div className="container px-4 py-12">
-        <div className="grid gap-8 lg:grid-cols-4">
+    <footer className="border-t border-border bg-background w-full">
+      <div className="mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+
           {/* Logo & Description */}
           <div className="lg:col-span-2">
             <Link href="/" className="flex items-center space-x-2 mb-4">
               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-800 to-purple-100 flex items-center justify-center">
                 <Building2 className="h-5 w-5 text-white" />
               </div>
-              <span className="font-bold text-xl bg-gradient-to-r from-purple-800 to-purple-600 bg-clip-text text-transparent">
+              <span className="font-bold text-3xl bg-gradient-to-r from-purple-800 to-purple-600 bg-clip-text text-transparent">
                 PropChain
               </span>
             </Link>
             <p className="text-muted-foreground max-w-md">
-              Revolutionizing property ownership with blockchain technology. Secure, transparent, and verified real
-              estate transactions.
+              Revolutionizing property ownership with blockchain technology. Secure, transparent, and verified real estate transactions.
             </p>
             <div className="flex space-x-4 mt-6">
               <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
@@ -35,8 +35,8 @@ export function Footer() {
 
           {/* Quick Links */}
           <div>
-            <h3 className="font-semibold mb-4">Quick Links</h3>
-            <ul className="space-y-2">
+            <h3 className="font-semibold text-xl mb-4">Quick Links</h3>
+            <ul className="space-y-2 text-md">
               <li>
                 <Link href="/marketplace" className="text-muted-foreground hover:text-primary transition-colors">
                   Marketplace
@@ -62,8 +62,8 @@ export function Footer() {
 
           {/* Legal */}
           <div>
-            <h3 className="font-semibold mb-4">Legal</h3>
-            <ul className="space-y-2">
+            <h3 className="font-semibold text-xl mb-4">Legal</h3>
+            <ul className="space-y-2 text-md">
               <li>
                 <Link href="#" className="text-muted-foreground hover:text-primary transition-colors">
                   Privacy Policy
@@ -83,7 +83,8 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-border mt-8 pt-8 text-center text-muted-foreground">
+        {/* Footer Bottom */}
+        <div className="mt-12 border-t border-border pt-6 text-xl text-center text-muted-foreground">
           <p>&copy; 2024 PropChain. All rights reserved.</p>
         </div>
       </div>

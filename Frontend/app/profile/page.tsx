@@ -75,7 +75,7 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="container px-4 py-8">
+      <main className="px-4 py-8">
         <div className="space-y-8">
           {/* Header */}
           <div className="relative overflow-hidden rounded-2xl">

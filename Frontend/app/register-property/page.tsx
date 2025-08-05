@@ -12,7 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
-import { Upload, X, CheckCircle, Building2, MapPin, FileText } from "lucide-react"
+import { CheckCircle, Building2, MapPin } from "lucide-react" // Removed Upload, X, FileText as they are no longer needed here
 
 export default function RegisterPropertyPage() {
   const [formData, setFormData] = useState({
@@ -25,7 +25,7 @@ export default function RegisterPropertyPage() {
     price: "",
     description: "",
   })
-  const [documents, setDocuments] = useState<File[]>([])
+  // Removed documents state as property image upload is now on verify-land
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
@@ -34,7 +34,7 @@ export default function RegisterPropertyPage() {
   useEffect(() => {
     const isAuthenticated = localStorage.getItem("isAuthenticated")
     if (!isAuthenticated) {
-      // router.push("/auth/login")
+      // router.push("/auth/login") // Uncomment this if authentication is required before registration
     }
   }, [router])
 
@@ -59,14 +59,7 @@ export default function RegisterPropertyPage() {
     }
   }
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    setDocuments((prev) => [...prev, ...files])
-  }
-
-  const removeDocument = (index: number) => {
-    setDocuments((prev) => prev.filter((_, i) => i !== index))
-  }
+  // Removed handleFileUpload and removeDocument as document upload is moved
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,13 +67,18 @@ export default function RegisterPropertyPage() {
 
     setIsLoading(true)
 
-    // Mock API call
+    // Simulate API call for registering property details
     setTimeout(() => {
       setIsLoading(false)
       setShowSuccess(true)
 
+      // Store a flag in localStorage to indicate property details are submitted
+      // This can be used by /verify-land to ensure proper flow
+      localStorage.setItem("propertyDetailsSubmitted", "true")
+
       setTimeout(() => {
-        router.push("/marketplace")
+        // Redirect to the verify-land page for property document upload
+        router.push("/verify-land")
       }, 2000)
     }, 2000)
   }
@@ -89,19 +87,19 @@ export default function RegisterPropertyPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="container px-4 py-8 flex items-center justify-center min-h-[60vh]">
-          <Card className="w-full max-w-md text-center glass">
+        <div className="px-4 py-8 flex items-center justify-center min-h-[60vh]">
+          <Card className="w-full text-center glass">
             <CardContent className="pt-6">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-800 to-purple-100 flex items-center justify-center">
                 <CheckCircle className="h-8 w-8 text-white" />
               </div>
               <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-800 to-purple-600 bg-clip-text text-transparent mb-2">
-                Property Registered Successfully!
+                Property Details Submitted!
               </h2>
               <p className="text-muted-foreground mb-4">
-                Your property has been registered and will be available in the marketplace shortly.
+                Your property details have been recorded. Now, let's upload the property proof.
               </p>
-              <p className="text-sm text-muted-foreground">Redirecting to marketplace...</p>
+              <p className="text-sm text-muted-foreground">Redirecting to property verification...</p>
             </CardContent>
           </Card>
         </div>
@@ -113,7 +111,7 @@ export default function RegisterPropertyPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <main className="container px-4 py-8">
+      <main className="px-4 py-8">
         <div className="space-y-8">
           {/* Header */}
           <div className="relative overflow-hidden rounded-2xl">
@@ -245,9 +243,8 @@ export default function RegisterPropertyPage() {
                 </CardContent>
               </Card>
 
-              {/* Location & Documents */}
+              {/* Location Coordinates */}
               <div className="space-y-6">
-                {/* Location */}
                 <Card className="glass">
                   <CardHeader>
                     <CardTitle className="flex items-center">
@@ -281,64 +278,7 @@ export default function RegisterPropertyPage() {
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Document Upload */}
-                <Card className="glass">
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <FileText className="mr-2 h-5 w-5 text-purple-800 dark:text-purple-100" />
-                      Property Documents
-                    </CardTitle>
-                    <CardDescription>Upload ownership deed, tax records, etc.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="border-2 border-dashed border-purple-800/20 dark:border-purple-100/20 rounded-lg p-6 text-center hover:border-purple-800/40 dark:hover:border-purple-100/40 transition-colors">
-                      <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-800/10 to-purple-100/10 flex items-center justify-center">
-                        <Upload className="h-6 w-6 text-purple-800 dark:text-purple-100" />
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">Click to upload or drag and drop</p>
-                      <p className="text-xs text-muted-foreground">PDF, JPG, PNG up to 10MB each</p>
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        onChange={handleFileUpload}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
-                    </div>
-
-                    {documents.length > 0 && (
-                      <div className="space-y-2">
-                        <h4 className="font-medium text-sm">Uploaded Documents</h4>
-                        {documents.map((doc, index) => (
-                          <div
-                            key={index}
-                            className="flex items-center justify-between p-3 bg-background/50 rounded-lg border border-purple-800/20 dark:border-purple-100/20"
-                          >
-                            <div className="flex items-center space-x-3">
-                              <FileText className="h-5 w-5 text-purple-800 dark:text-purple-100" />
-                              <div>
-                                <p className="font-medium text-sm">{doc.name}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {(doc.size / 1024 / 1024).toFixed(2)} MB
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeDocument(index)}
-                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                {/* The "Document Upload" card is removed from here */}
               </div>
             </div>
 
@@ -348,6 +288,7 @@ export default function RegisterPropertyPage() {
                 type="button"
                 variant="outline"
                 className="border-purple-800/20 dark:border-purple-100/20 bg-transparent"
+                onClick={() => router.back()} // Added a back button for convenience
               >
                 Cancel
               </Button>
@@ -356,7 +297,7 @@ export default function RegisterPropertyPage() {
                 disabled={isLoading}
                 className="bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
               >
-                {isLoading ? "Registering Property..." : "Register Property"}
+                {isLoading ? "Submitting Details..." : "Submit Property Details"}
               </Button>
             </div>
           </form>
