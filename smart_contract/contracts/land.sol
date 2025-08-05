@@ -8,15 +8,17 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     /* ─────────────── roles ─────────────── */
     bytes32 public constant SELLER_ROLE = keccak256("SELLER_ROLE");
     bytes32 public constant BUYER_ROLE  = keccak256("BUYER_ROLE");
-    // REGULATOR_ROLE removed - admin handles all regulatory functions
 
     /* ─────────────── fraud detection ─────────────── */
-    uint256 public constant FRAUD_THRESHOLD = 10;  // transactions before flagging
+    uint256 public constant FRAUD_THRESHOLD = 10;
 
     // Track transactions between specific buyer-seller pairs
-    mapping(bytes32 => uint256) public transactionCount;     // hash(buyer,seller) => count
-    mapping(bytes32 => bool) public flaggedPairs;           // hash(buyer,seller) => flagged
-    mapping(bytes32 => uint256[]) public transactionHistory; // hash(buyer,seller) => [landIds]
+    mapping(bytes32 => uint256) public transactionCount;
+    mapping(bytes32 => bool) public flaggedPairs;
+    mapping(bytes32 => uint256[]) public transactionHistory;
+
+    /* ─────────────── Auto-role tracking ─────────────── */
+    mapping(address => bool) public hasReceivedAutoRoles; // Track who got auto roles
 
     /* ───────────── data model ───────────── */
     struct Land {
@@ -26,16 +28,16 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         uint256 postalCode;
         string  propertyName;
         bool    isShared;
-        uint256 totalShares;      // 1 when not shared
-        uint256 pricePerShare;    // wei
-        uint256 availableShares;  // remaining in creator's wallet
+        uint256 totalShares;
+        uint256 pricePerShare;
+        uint256 availableShares;
         address originalOwner;
-        bool    forSale;          // whole parcel listing flag
-        uint256 wholePrice;       // wei
+        bool    forSale;
+        uint256 wholePrice;
     }
 
     uint256 private _tokenIdCounter = 1;
-    mapping(uint256 => Land) public lands;     // landId → info
+    mapping(uint256 => Land) public lands;
     mapping(bytes32 => bool) private propertySeen;
 
     /* ───────────── events ───────────── */
@@ -47,23 +49,15 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     event WholeSold(uint256 indexed landId, address indexed buyer, uint256 priceWei);
     
     /* ─────────────── fraud detection events ─────────────── */
-    event SuspiciousActivity(
-        address indexed buyer,
-        address indexed seller, 
-        uint256 transactionCount,
-        uint256 indexed landId
-    );
-    
-    event PairFlagged(
-        address indexed buyer,
-        address indexed seller,
-        uint256 totalTransactions
-    );
+    event SuspiciousActivity(address indexed buyer, address indexed seller, uint256 transactionCount, uint256 indexed landId);
+    event PairFlagged(address indexed buyer, address indexed seller, uint256 totalTransactions);
+
+    /* ─────────────── Auto-role events ─────────────── */
+    event AutoRolesGranted(address indexed user);
 
     /* ────────── constructor ─────────── */
     constructor(string memory defaultURI) ERC1155(defaultURI) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        // Admin now handles all regulatory functions - no separate regulator role
     }
 
     /* ───── supportsInterface override ──── */
@@ -77,11 +71,39 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         return super.supportsInterface(interfaceId);
     }
 
+    /* ─────────────── Auto-role granting function ─────────────── */
+    
+    /// Users call this when they first interact with the platform
+    function requestAutoRoles() external {
+        // Don't grant roles to admin or if already granted
+        require(!hasRole(DEFAULT_ADMIN_ROLE, msg.sender), "Admin doesn't need auto roles");
+        require(!hasReceivedAutoRoles[msg.sender], "Roles already granted");
+        
+        // Grant both buyer and seller roles automatically
+        _grantRole(BUYER_ROLE, msg.sender);
+        _grantRole(SELLER_ROLE, msg.sender);
+        
+        // Mark as having received auto roles
+        hasReceivedAutoRoles[msg.sender] = true;
+        
+        emit AutoRolesGranted(msg.sender);
+    }
+
+    /// Auto-grant roles modifier - grants roles if user doesn't have them
+    modifier autoGrantRoles() {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && 
+            !hasReceivedAutoRoles[msg.sender]) {
+            _grantRole(BUYER_ROLE, msg.sender);
+            _grantRole(SELLER_ROLE, msg.sender);
+            hasReceivedAutoRoles[msg.sender] = true;
+            emit AutoRolesGranted(msg.sender);
+        }
+        _;
+    }
+
     /* ─────────────── fraud detection helper functions ─────────────── */
     
-    /// Generate unique hash for buyer-seller pair
     function _getPairHash(address buyer, address seller) internal pure returns (bytes32) {
-        // Ensure consistent ordering regardless of who calls first
         if (buyer < seller) {
             return keccak256(abi.encodePacked(buyer, seller));
         } else {
@@ -89,55 +111,47 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         }
     }
 
-    /// Check and update fraud detection counters
     function _checkFraudulentActivity(address buyer, address seller, uint256 landId) internal {
         bytes32 pairHash = _getPairHash(buyer, seller);
         
-        // Increment transaction count
         transactionCount[pairHash]++;
         transactionHistory[pairHash].push(landId);
         
         uint256 count = transactionCount[pairHash];
         
-        // Emit warning for suspicious activity (every transaction after threshold-1)
         if (count >= FRAUD_THRESHOLD - 1) {
             emit SuspiciousActivity(buyer, seller, count, landId);
         }
         
-        // Flag the pair if they hit the threshold
         if (count >= FRAUD_THRESHOLD && !flaggedPairs[pairHash]) {
             flaggedPairs[pairHash] = true;
             emit PairFlagged(buyer, seller, count);
         }
     }
 
-    /// Check if a buyer-seller pair is flagged
     function isPairFlagged(address buyer, address seller) external view returns (bool) {
         bytes32 pairHash = _getPairHash(buyer, seller);
         return flaggedPairs[pairHash];
     }
 
-    /// Get transaction count between two addresses
     function getTransactionCount(address buyer, address seller) external view returns (uint256) {
         bytes32 pairHash = _getPairHash(buyer, seller);
         return transactionCount[pairHash];
     }
 
-    /// Get transaction history for a pair (landIds they've traded) - ADMIN ONLY
     function getTransactionHistory(address buyer, address seller) 
         external 
         view 
-        onlyRole(DEFAULT_ADMIN_ROLE)  // Changed from REGULATOR_ROLE to DEFAULT_ADMIN_ROLE
+        onlyRole(DEFAULT_ADMIN_ROLE)
         returns (uint256[] memory) 
     {
         bytes32 pairHash = _getPairHash(buyer, seller);
         return transactionHistory[pairHash];
     }
 
-    /// Admin can manually flag/unflag suspicious pairs - ADMIN ONLY
     function setFlaggedPair(address buyer, address seller, bool flagged) 
         external 
-        onlyRole(DEFAULT_ADMIN_ROLE)  // Changed from REGULATOR_ROLE to DEFAULT_ADMIN_ROLE
+        onlyRole(DEFAULT_ADMIN_ROLE)
     {
         bytes32 pairHash = _getPairHash(buyer, seller);
         flaggedPairs[pairHash] = flagged;
@@ -147,7 +161,6 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         }
     }
 
-    /// Block transactions from flagged pairs
     modifier notFlagged(address buyer, address seller) {
         bytes32 pairHash = _getPairHash(buyer, seller);
         require(!flaggedPairs[pairHash], "Transaction blocked: flagged pair");
@@ -163,7 +176,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         require(
             hasRole(BUYER_ROLE, msg.sender) ||
             hasRole(SELLER_ROLE, msg.sender) ||
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),  // Changed from REGULATOR_ROLE to DEFAULT_ADMIN_ROLE
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "not authorized"
         );
         _;
@@ -179,7 +192,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         uint256 area,
         uint256 postal,
         string calldata name
-    ) external onlySeller returns (uint256 id) {
+    ) external autoGrantRoles onlySeller returns (uint256 id) {
 
         bytes32 hash = keccak256(abi.encodePacked(addr, area, postal, name));
         require(!propertySeen[hash], "property already registered");
@@ -206,7 +219,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     }
 
     /* ───── whole-parcel trading ───── */
-    function listWhole(uint256 id, uint256 priceWei) external landExists(id) {
+    function listWhole(uint256 id, uint256 priceWei) external landExists(id) autoGrantRoles {
         Land storage l = lands[id];
         require(!l.isShared, "already shared");
         require(balanceOf(msg.sender, id) == 1, "not owner");
@@ -217,11 +230,11 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         emit WholeListed(id, priceWei);
     }
 
-    function delistWhole(uint256 id) external landExists(id) {
+    function delistWhole(uint256 id) external landExists(id) autoGrantRoles {
         Land storage l = lands[id];
         require(l.forSale, "not listed");
         require(
-            balanceOf(msg.sender, id) == 1 || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),  // Changed from REGULATOR_ROLE
+            balanceOf(msg.sender, id) == 1 || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),
             "not owner / admin"
         );
 
@@ -233,6 +246,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     function buyWhole(uint256 id)
         external
         payable
+        autoGrantRoles
         onlyAuthorized
         landExists(id)
         notFlagged(msg.sender, lands[id].originalOwner)
@@ -244,7 +258,6 @@ contract LandRegistration1155 is ERC1155, AccessControl {
 
         address seller = l.originalOwner;
 
-        /* INTERNAL transfer—no approval needed */
         _safeTransferFrom(seller, msg.sender, id, 1, "");
 
         l.forSale = false;
@@ -254,7 +267,6 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         (bool ok, ) = payable(seller).call{value: msg.value}("");
         require(ok, "ETH transfer failed");
 
-        // Track this transaction for fraud detection
         _checkFraudulentActivity(msg.sender, seller, id);
 
         emit WholeSold(id, msg.sender, msg.value);
@@ -264,6 +276,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     function fractionalise(uint256 id, uint256 shares, uint256 pricePerShare)
         external
         landExists(id)
+        autoGrantRoles
     {
         Land storage l = lands[id];
         require(!l.isShared, "already shared");
@@ -271,14 +284,14 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         require(shares > 1, "shares<=1");
         require(pricePerShare > 0, "price/share=0");
 
-        _burn(msg.sender, id, 1);                // burn 1-of-1 token
+        _burn(msg.sender, id, 1);
 
         l.isShared = true;
         l.totalShares = shares;
         l.pricePerShare = pricePerShare;
         l.availableShares = shares;
 
-        _mint(msg.sender, id, shares, "");       // mint shares
+        _mint(msg.sender, id, shares, "");
         emit LandFractionalised(id, shares, pricePerShare);
     }
 
@@ -286,6 +299,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     function buyShares(uint256 id, uint256 amount)
         external
         payable
+        autoGrantRoles
         onlyAuthorized
         landExists(id)
         notFlagged(msg.sender, lands[id].originalOwner)
@@ -301,12 +315,10 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         (bool ok, ) = payable(seller).call{value: cost}("");
         require(ok, "ETH fail");
 
-        /* INTERNAL transfer—no approval needed */
         _safeTransferFrom(seller, msg.sender, id, amount, "");
 
         l.availableShares -= amount;
 
-        // Track this transaction for fraud detection
         _checkFraudulentActivity(msg.sender, seller, id);
 
         emit SharesPurchased(id, msg.sender, amount);
@@ -315,17 +327,16 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     /* ───── secondary share transfer ───── */
     function transferShares(address to, uint256 id, uint256 amount) 
         external 
+        autoGrantRoles
         notFlagged(msg.sender, to)
     {
         require(lands[id].isShared, "land not shared");
         _safeTransferFrom(msg.sender, to, id, amount, "");
         
-        // Track secondary market transactions too
-        _checkFraudulentActivity(to, msg.sender, id);
     }
 
     /* ───── defragment ───── */
-    function defragmentLand(uint256 id) external landExists(id) {
+    function defragmentLand(uint256 id) external landExists(id) autoGrantRoles {
         Land storage l = lands[id];
         require(l.isShared, "not shared");
         require(balanceOf(msg.sender, id) == l.totalShares, "need all shares");
@@ -378,20 +389,23 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         );
     }
 
-    /* ───── role helpers (no regulator role functions) ───── */
-    function grantSellerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
-        _grantRole(SELLER_ROLE, a); 
-    }
-    function grantBuyerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
-        _grantRole(BUYER_ROLE, a); 
-    }
-    // Removed grantRegulatorRole function
+    /* ─────────────── REMOVED: Manual role management functions ─────────────── */
+    // All manual role granting/revoking functions have been removed
+    // Users can only get roles through the auto-role system
 
-    function revokeSellerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
-        _revokeRole(SELLER_ROLE, a); 
+    /* ─────────────── Helper functions ─────────────── */
+    
+    /// Check if user has received auto roles
+    function hasAutoRoles(address user) external view returns (bool) {
+        return hasReceivedAutoRoles[user];
     }
-    function revokeBuyerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
-        _revokeRole(BUYER_ROLE, a); 
+
+    /// Get user's current roles
+    function getUserRoles(address user) external view returns (bool isBuyer, bool isSeller, bool isAdmin) {
+        return (
+            hasRole(BUYER_ROLE, user),
+            hasRole(SELLER_ROLE, user),
+            hasRole(DEFAULT_ADMIN_ROLE, user)
+        );
     }
-    // Removed revokeRegulatorRole function
 }

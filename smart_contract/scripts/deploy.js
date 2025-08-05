@@ -23,18 +23,33 @@ async function main() {
 
   console.log("\n✅  LandRegistration1155 deployed at:", await land.getAddress());
 
-  /* ─────────────── 3. role boot-strapping ─────────────── */
-  // Deployer already has DEFAULT_ADMIN_ROLE (which includes all regulatory functions)
-  // No separate REGULATOR_ROLE exists in the updated contract
+  /* ─────────────── 3. Auto-role system testing ─────────────── */
+  console.log("\n🤖  Testing Auto-Role System...");
+  
+  // Check if users have auto roles initially (should be false)
+  const sellerHasAutoRoles = await land.hasAutoRoles(seller.address);
+  const buyerHasAutoRoles = await land.hasAutoRoles(buyer.address);
+  console.log("   • Seller has auto roles initially:", sellerHasAutoRoles);
+  console.log("   • Buyer has auto roles initially:", buyerHasAutoRoles);
 
-  await (await land.grantSellerRole(seller.address)).wait();
-  await (await land.grantBuyerRole(buyer.address)).wait();
-  // Removed grantRegulatorRole call since it doesn't exist in updated contract
+  // Test explicit auto-role requesting
+  await (await land.connect(seller).requestAutoRoles()).wait();
+  await (await land.connect(buyer).requestAutoRoles()).wait();
+  
+  console.log("\n🎉  Auto-roles granted:");
+  console.log("   • Seller   →", seller.address, "(auto-granted BUYER + SELLER roles)");
+  console.log("   • Buyer    →", buyer.address, "(auto-granted BUYER + SELLER roles)");
+  console.log("   • Admin    →", deployer.address, "(DEFAULT_ADMIN_ROLE + regulatory functions only)");
 
-  console.log("\n🎉  Initial roles granted:");
-  console.log("   • Seller   →", seller.address);
-  console.log("   • Buyer    →", buyer.address);
-  console.log("   • Admin    →", deployer.address, "(handles all regulatory functions)");
+  // Verify roles were granted correctly
+  const [sellerIsBuyer, sellerIsSeller, sellerIsAdmin] = await land.getUserRoles(seller.address);
+  const [buyerIsBuyer, buyerIsSellerToo, buyerIsAdmin] = await land.getUserRoles(buyer.address);
+  const [adminIsBuyer, adminIsSeller, adminIsAdmin] = await land.getUserRoles(deployer.address);
+
+  console.log("\n✅  Role verification:");
+  console.log("   • Seller roles: Buyer=" + sellerIsBuyer + ", Seller=" + sellerIsSeller + ", Admin=" + sellerIsAdmin);
+  console.log("   • Buyer roles: Buyer=" + buyerIsBuyer + ", Seller=" + buyerIsSellerToo + ", Admin=" + buyerIsAdmin);
+  console.log("   • Admin roles: Buyer=" + adminIsBuyer + ", Seller=" + adminIsSeller + ", Admin=" + adminIsAdmin);
 
   /* ───────────────── 4. fraud detection info ─────────────── */
   console.log("\n🔍  Fraud Detection Features:");
@@ -52,7 +67,7 @@ async function main() {
   console.log("   • Pair flagged status:", isFlagged);
 
   /* ─────────────── 5. setup event listeners ─────────────── */
-  console.log("\n👂  Setting up fraud detection event listeners...");
+  console.log("\n👂  Setting up event listeners...");
   
   // Listen for suspicious activity
   land.on("SuspiciousActivity", (buyer, seller, count, landId, event) => {
@@ -73,6 +88,13 @@ async function main() {
     console.log(`   Block: ${event.blockNumber}`);
   });
 
+  // Listen for auto-role grants
+  land.on("AutoRolesGranted", (user, event) => {
+    console.log(`🎭 AUTO-ROLES GRANTED:`);
+    console.log(`   User: ${user}`);
+    console.log(`   Block: ${event.blockNumber}`);
+  });
+
   console.log("✅  Event listeners active!");
 
   /* ────────────── 6. example transaction for testing ──────────── */
@@ -80,7 +102,14 @@ async function main() {
     console.log("\n🧪  Running demo transactions...");
     
     try {
-      // Register a test property
+      // Test auto-role granting with actual transactions
+      console.log("\n🔄  Testing auto-role functionality with transactions...");
+      
+      // 'other' user will get auto-roles when they first interact
+      const hasAutoRolesBefore = await land.hasAutoRoles(other.address);
+      console.log("   • Other user has auto roles before transaction:", hasAutoRolesBefore);
+
+      // Register a test property (seller already has roles)
       const tx1 = await land.connect(seller).registerLand(
         "123 Demo Street",
         1000,
@@ -100,6 +129,22 @@ async function main() {
       const tx3 = await land.connect(buyer).buyWhole(1, { value: price });
       await tx3.wait();
       console.log("   ✓ Property purchased by buyer");
+
+      // Test auto-role granting with 'other' user
+      const tx4 = await land.connect(other).registerLand(
+        "456 Auto Street",
+        750,
+        54321,
+        "Auto Role Property"
+      );
+      await tx4.wait();
+      console.log("   ✓ Other user registered property (auto-roles should be granted)");
+
+      // Check if 'other' user got auto-roles
+      const hasAutoRolesAfter = await land.hasAutoRoles(other.address);
+      const [otherIsBuyer, otherIsSeller, otherIsAdmin] = await land.getUserRoles(other.address);
+      console.log("   • Other user has auto roles after transaction:", hasAutoRolesAfter);
+      console.log("   • Other user roles: Buyer=" + otherIsBuyer + ", Seller=" + otherIsSeller + ", Admin=" + otherIsAdmin);
 
       // Check transaction count after purchase
       const newCount = await land.getTransactionCount(buyer.address, seller.address);
@@ -123,6 +168,7 @@ async function main() {
       console.log("\n📝  To test fraud detection:");
       console.log("   • Run multiple buyWhole/sellWhole cycles between same pair");
       console.log("   • Fraud detection triggers after", fraudThreshold.toString(), "transactions");
+      console.log("   • Auto-roles are granted on first interaction with any function");
       
     } catch (error) {
       console.log("   ⚠️  Demo transactions failed (this is normal on testnets)");
@@ -130,32 +176,44 @@ async function main() {
     }
   }
 
-  /* ────────────── 7. fraud detection summary ──────────── */
-  console.log("\n🛡️  Fraud Detection Summary:");
-  console.log("   📊 Volume-Based Detection:");
+  /* ────────────── 7. updated system summary ──────────── */
+  console.log("\n🛡️  Enhanced System Summary:");
+  console.log("   📊 Volume-Based Fraud Detection:");
   console.log("      • Tracks total transactions between pairs");
   console.log("      • Flags after", fraudThreshold.toString(), "transactions");
   console.log("      • Prevents wash trading through high volume");
   
-  console.log("   🔧 Admin Controls (Regulatory Functions):");
+  console.log("   🤖 Fully Automated Role System:");
+  console.log("      • Users automatically get BUYER + SELLER roles");
+  console.log("      • Triggered on first contract interaction");
+  console.log("      • No admin approval needed - completely automated");
+  console.log("      • One-time grant per address");
+  console.log("      • No manual role management by admin");
+  
+  console.log("   🔧 Admin Controls (Limited to Regulatory Functions):");
   console.log("      • Manual flagging/unflagging of pairs");
   console.log("      • Transaction history viewing");
-  console.log("      • Complete system oversight");
-  console.log("      • Role management (buyer/seller only)");
+  console.log("      • Fraud detection oversight");
+  console.log("      • Emergency property delisting");
 
   console.log("\n🎯  Deployment complete! Contract features:");
   console.log("   • Land registration & trading ✓");
   console.log("   • Fractional ownership ✓");
-  console.log("   • Simplified role-based access control ✓");
+  console.log("   • Fully automated role granting ✓");
   console.log("   • Volume-based fraud detection ✓");
   console.log("   • Transaction monitoring ✓");
-  console.log("   • Admin-controlled regulatory oversight ✓");
+  console.log("   • Admin regulatory oversight (no role management) ✓");
 
-  console.log("\n📋  Role Structure:");
-  console.log("   • Admin (DEFAULT_ADMIN_ROLE): Complete control + regulatory functions");
-  console.log("   • Seller (SELLER_ROLE): Can register and sell properties");
-  console.log("   • Buyer (BUYER_ROLE): Can purchase properties and shares");
-  console.log("   • No separate regulator role - admin handles all oversight");
+  console.log("\n📋  Final Role Structure:");
+  console.log("   • Admin (DEFAULT_ADMIN_ROLE): Fraud detection & emergency controls only");
+  console.log("   • Regular Users: Auto-granted BUYER + SELLER roles on first interaction");
+  console.log("   • Zero waiting time - immediate platform access");
+  console.log("   • No manual role management - fully decentralized user onboarding");
+
+  console.log("\n🚀  Ready for users! Completely automated trading permissions.");
+  console.log("   • Users get instant access upon first interaction");
+  console.log("   • Admin cannot control user role assignment");
+  console.log("   • Truly decentralized user onboarding experience");
 }
 
 /* ────────────────────────── run script ─────────────────────────── */
