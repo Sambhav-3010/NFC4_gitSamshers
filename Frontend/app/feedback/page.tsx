@@ -3,7 +3,6 @@
 import type React from "react";
 
 import { useState } from "react";
-import AppLayout from "@/components/layout/app-layout";
 import {
   Card,
   CardContent,
@@ -71,8 +70,8 @@ export default function FeedbackPage() {
     return (
       <>
         <Navbar />
-        <div className="mt-10 flex items-center justify-center min-h-[400px]">
-          <Card className="w-full max-w-md text-center">
+        <div className="flex items-center justify-center mr-5 ml-5 min-h-[400px]">
+          <Card className="w-full text-center">
             <div className="absolute inset-0 bg-gradient-to-br from-purple-800/5 to-purple-100/5 rounded-lg"></div>
             <CardContent className="relative pt-6">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-800 to-purple-100 flex items-center justify-center">
@@ -104,8 +103,7 @@ export default function FeedbackPage() {
       <div className="mt-10 space-y-6">
         {/* Header */}
         
-
-        <div className="max-w-2xl mx-auto">
+        <div className="mx-5">
           <div className="gradient-border">
             <Card className="gradient-border-content border-0">
               <CardHeader>
