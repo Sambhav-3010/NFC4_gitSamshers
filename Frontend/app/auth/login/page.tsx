@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { ThemeToggle } from "@/components/theme-toggle"
 import { Eye, EyeOff, Building2, Shield } from "lucide-react"
+import { signInWithPopup } from "firebase/auth"
+import { auth, provider } from "@/lib/firebase"
+import Image from "next/image"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -56,13 +58,27 @@ export default function LoginPage() {
     }, 1000)
   }
 
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, provider)
+      const user = result.user
+      console.log("User:", user)
+
+      // Optional: save user info in localStorage or context
+       if (typeof window !== "undefined") {
+      localStorage.setItem("isAuthenticated", "true")
+      localStorage.setItem("userEmail", user.email || "")
+       }
+
+      router.push("/profile")
+    } catch (error) {
+      console.error("Popup login error:", error)
+    }
+  }
+
   return (
     <div className="min-h-screen relative overflow-hidden">
       <div className="absolute inset-0 animated-gradient opacity-90"></div>
-
-      <div className="absolute top-4 right-4 z-10">
-        <ThemeToggle />
-      </div>
 
       <div className="relative z-10 flex items-center justify-center min-h-screen p-4">
         <Card className="w-full max-w-md glass">
@@ -135,15 +151,25 @@ export default function LoginPage() {
               >
                 {isLoading ? "Signing in..." : "Sign In"}
               </Button>
+
+              <Button
+                type="button"
+                className="w-full bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
+                disabled={isLoading}
+                onClick={handleGoogleLogin}
+              >
+                <Image src="/google-icon.svg" alt="google" width={20} height={20} />
+                {isLoading ? "Signing in..." : "Sign In with Google"}
+              </Button>
             </form>
 
             <div className="mt-6 text-center text-sm">
               <div className="flex items-center justify-center mb-2">
-                <Shield className="h-4 w-4 text-purple-800 dark:text-purple-100 mr-1" />
-                <span className="text-muted-foreground">Secured by Blockchain</span>
+                <Shield className="h-4 w-4 text-purple-800 dark:text-purple-800 mr-1" />
+                <span className="text-purple-800 dark:text-purple-800">Secured by Blockchain</span>
               </div>
               Don't have an account?{" "}
-              <Link href="/auth/signup" className="text-purple-800 dark:text-purple-100 hover:underline font-medium">
+              <Link href="/auth/signup" className="text-purple-800 dark:text-purple-800 hover:underline font-medium">
                 Sign up
               </Link>
             </div>
