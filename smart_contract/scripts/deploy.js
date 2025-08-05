@@ -7,12 +7,12 @@ const hre = require("hardhat");
 
 async function main() {
   /* ────────────────────────── 1. signers ────────────────────────── */
-  const [deployer, seller, buyer, regulator] = await hre.ethers.getSigners();
+  const [deployer, seller, buyer, other] = await hre.ethers.getSigners();
 
   console.log("Deployer  (admin):", deployer.address);
   console.log("Sample Seller   :", seller.address);
   console.log("Sample Buyer    :", buyer.address);
-  console.log("Sample Regulator:", regulator.address);
+  console.log("Sample Other    :", other.address);
 
   /* ───────────────────────── 2. deployment ──────────────────────── */
   const Land1155 = await hre.ethers.getContractFactory("LandRegistration1155");
@@ -23,17 +23,18 @@ async function main() {
 
   console.log("\n✅  LandRegistration1155 deployed at:", await land.getAddress());
 
-  /* ─────────────── 3. optional role boot-strapping ─────────────── */
-  // Deployer already has DEFAULT_ADMIN_ROLE & REGULATOR_ROLE
+  /* ─────────────── 3. role boot-strapping ─────────────── */
+  // Deployer already has DEFAULT_ADMIN_ROLE (which includes all regulatory functions)
+  // No separate REGULATOR_ROLE exists in the updated contract
 
   await (await land.grantSellerRole(seller.address)).wait();
   await (await land.grantBuyerRole(buyer.address)).wait();
-  await (await land.grantRegulatorRole(regulator.address)).wait();
+  // Removed grantRegulatorRole call since it doesn't exist in updated contract
 
   console.log("\n🎉  Initial roles granted:");
   console.log("   • Seller   →", seller.address);
   console.log("   • Buyer    →", buyer.address);
-  console.log("   • Regulator→", regulator.address);
+  console.log("   • Admin    →", deployer.address, "(handles all regulatory functions)");
 
   /* ───────────────── 4. fraud detection info ─────────────── */
   console.log("\n🔍  Fraud Detection Features:");
@@ -104,6 +105,21 @@ async function main() {
       const newCount = await land.getTransactionCount(buyer.address, seller.address);
       console.log("   • Transaction count after purchase:", newCount.toString());
 
+      // Test admin regulatory functions
+      console.log("\n🔧  Testing admin regulatory functions...");
+      
+      // Admin can view transaction history
+      const history = await land.connect(deployer).getTransactionHistory(buyer.address, seller.address);
+      console.log("   • Transaction history length:", history.length);
+      
+      // Admin can manually flag pairs (for testing)
+      await land.connect(deployer).setFlaggedPair(other.address, seller.address, true);
+      console.log("   ✓ Admin manually flagged test pair");
+      
+      // Check if pair is flagged
+      const testFlagged = await land.isPairFlagged(other.address, seller.address);
+      console.log("   • Test pair flagged status:", testFlagged);
+
       console.log("\n📝  To test fraud detection:");
       console.log("   • Run multiple buyWhole/sellWhole cycles between same pair");
       console.log("   • Fraud detection triggers after", fraudThreshold.toString(), "transactions");
@@ -121,18 +137,25 @@ async function main() {
   console.log("      • Flags after", fraudThreshold.toString(), "transactions");
   console.log("      • Prevents wash trading through high volume");
   
-  console.log("   🔧 Regulator Controls:");
+  console.log("   🔧 Admin Controls (Regulatory Functions):");
   console.log("      • Manual flagging/unflagging of pairs");
   console.log("      • Transaction history viewing");
-  console.log("      • Comprehensive oversight tools");
+  console.log("      • Complete system oversight");
+  console.log("      • Role management (buyer/seller only)");
 
   console.log("\n🎯  Deployment complete! Contract features:");
   console.log("   • Land registration & trading ✓");
   console.log("   • Fractional ownership ✓");
-  console.log("   • Role-based access control ✓");
+  console.log("   • Simplified role-based access control ✓");
   console.log("   • Volume-based fraud detection ✓");
   console.log("   • Transaction monitoring ✓");
-  console.log("   • Regulatory oversight ✓");
+  console.log("   • Admin-controlled regulatory oversight ✓");
+
+  console.log("\n📋  Role Structure:");
+  console.log("   • Admin (DEFAULT_ADMIN_ROLE): Complete control + regulatory functions");
+  console.log("   • Seller (SELLER_ROLE): Can register and sell properties");
+  console.log("   • Buyer (BUYER_ROLE): Can purchase properties and shares");
+  console.log("   • No separate regulator role - admin handles all oversight");
 }
 
 /* ────────────────────────── run script ─────────────────────────── */

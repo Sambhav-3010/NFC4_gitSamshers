@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 
 contract LandRegistration1155 is ERC1155, AccessControl {
     /* ─────────────── roles ─────────────── */
-    bytes32 public constant REGULATOR_ROLE = keccak256("REGULATOR_ROLE");
-    bytes32 public constant SELLER_ROLE    = keccak256("SELLER_ROLE");
-    bytes32 public constant BUYER_ROLE     = keccak256("BUYER_ROLE");
+    bytes32 public constant SELLER_ROLE = keccak256("SELLER_ROLE");
+    bytes32 public constant BUYER_ROLE  = keccak256("BUYER_ROLE");
+    // REGULATOR_ROLE removed - admin handles all regulatory functions
 
     /* ─────────────── fraud detection ─────────────── */
     uint256 public constant FRAUD_THRESHOLD = 10;  // transactions before flagging
@@ -46,7 +46,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     event WholeDelisted(uint256 indexed landId);
     event WholeSold(uint256 indexed landId, address indexed buyer, uint256 priceWei);
     
-    /* ─────────────── NEW: fraud detection events ─────────────── */
+    /* ─────────────── fraud detection events ─────────────── */
     event SuspiciousActivity(
         address indexed buyer,
         address indexed seller, 
@@ -63,7 +63,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     /* ────────── constructor ─────────── */
     constructor(string memory defaultURI) ERC1155(defaultURI) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(REGULATOR_ROLE, msg.sender);
+        // Admin now handles all regulatory functions - no separate regulator role
     }
 
     /* ───── supportsInterface override ──── */
@@ -77,7 +77,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         return super.supportsInterface(interfaceId);
     }
 
-    /* ─────────────── NEW: fraud detection helper functions ─────────────── */
+    /* ─────────────── fraud detection helper functions ─────────────── */
     
     /// Generate unique hash for buyer-seller pair
     function _getPairHash(address buyer, address seller) internal pure returns (bytes32) {
@@ -123,21 +123,21 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         return transactionCount[pairHash];
     }
 
-    /// Get transaction history for a pair (landIds they've traded)
+    /// Get transaction history for a pair (landIds they've traded) - ADMIN ONLY
     function getTransactionHistory(address buyer, address seller) 
         external 
         view 
-        onlyRole(REGULATOR_ROLE)
+        onlyRole(DEFAULT_ADMIN_ROLE)  // Changed from REGULATOR_ROLE to DEFAULT_ADMIN_ROLE
         returns (uint256[] memory) 
     {
         bytes32 pairHash = _getPairHash(buyer, seller);
         return transactionHistory[pairHash];
     }
 
-    /// Regulators can manually flag/unflag suspicious pairs
+    /// Admin can manually flag/unflag suspicious pairs - ADMIN ONLY
     function setFlaggedPair(address buyer, address seller, bool flagged) 
         external 
-        onlyRole(REGULATOR_ROLE) 
+        onlyRole(DEFAULT_ADMIN_ROLE)  // Changed from REGULATOR_ROLE to DEFAULT_ADMIN_ROLE
     {
         bytes32 pairHash = _getPairHash(buyer, seller);
         flaggedPairs[pairHash] = flagged;
@@ -147,7 +147,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         }
     }
 
-    /// Optional: Block transactions from flagged pairs
+    /// Block transactions from flagged pairs
     modifier notFlagged(address buyer, address seller) {
         bytes32 pairHash = _getPairHash(buyer, seller);
         require(!flaggedPairs[pairHash], "Transaction blocked: flagged pair");
@@ -163,7 +163,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         require(
             hasRole(BUYER_ROLE, msg.sender) ||
             hasRole(SELLER_ROLE, msg.sender) ||
-            hasRole(REGULATOR_ROLE, msg.sender),
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender),  // Changed from REGULATOR_ROLE to DEFAULT_ADMIN_ROLE
             "not authorized"
         );
         _;
@@ -221,8 +221,8 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         Land storage l = lands[id];
         require(l.forSale, "not listed");
         require(
-            balanceOf(msg.sender, id) == 1 || hasRole(REGULATOR_ROLE, msg.sender),
-            "not owner / regulator"
+            balanceOf(msg.sender, id) == 1 || hasRole(DEFAULT_ADMIN_ROLE, msg.sender),  // Changed from REGULATOR_ROLE
+            "not owner / admin"
         );
 
         l.forSale = false;
@@ -235,7 +235,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         payable
         onlyAuthorized
         landExists(id)
-        notFlagged(msg.sender, lands[id].originalOwner)  // NEW: check for flagged pairs
+        notFlagged(msg.sender, lands[id].originalOwner)
     {
         Land storage l = lands[id];
         require(!l.isShared, "shared land");
@@ -254,7 +254,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         (bool ok, ) = payable(seller).call{value: msg.value}("");
         require(ok, "ETH transfer failed");
 
-        // NEW: Track this transaction for fraud detection
+        // Track this transaction for fraud detection
         _checkFraudulentActivity(msg.sender, seller, id);
 
         emit WholeSold(id, msg.sender, msg.value);
@@ -288,7 +288,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         payable
         onlyAuthorized
         landExists(id)
-        notFlagged(msg.sender, lands[id].originalOwner)  // NEW: check for flagged pairs
+        notFlagged(msg.sender, lands[id].originalOwner)
     {
         Land storage l = lands[id];
         require(l.isShared && l.availableShares >= amount, "not enough shares");
@@ -306,7 +306,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
 
         l.availableShares -= amount;
 
-        // NEW: Track this transaction for fraud detection
+        // Track this transaction for fraud detection
         _checkFraudulentActivity(msg.sender, seller, id);
 
         emit SharesPurchased(id, msg.sender, amount);
@@ -315,12 +315,12 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     /* ───── secondary share transfer ───── */
     function transferShares(address to, uint256 id, uint256 amount) 
         external 
-        notFlagged(msg.sender, to)  // NEW: check for flagged pairs on secondary transfers
+        notFlagged(msg.sender, to)
     {
         require(lands[id].isShared, "land not shared");
         _safeTransferFrom(msg.sender, to, id, amount, "");
         
-        // NEW: Track secondary market transactions too
+        // Track secondary market transactions too
         _checkFraudulentActivity(to, msg.sender, id);
     }
 
@@ -378,16 +378,14 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         );
     }
 
-    /* ───── role helpers ───── */
+    /* ───── role helpers (no regulator role functions) ───── */
     function grantSellerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
         _grantRole(SELLER_ROLE, a); 
     }
     function grantBuyerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
         _grantRole(BUYER_ROLE, a); 
     }
-    function grantRegulatorRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
-        _grantRole(REGULATOR_ROLE, a); 
-    }
+    // Removed grantRegulatorRole function
 
     function revokeSellerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
         _revokeRole(SELLER_ROLE, a); 
@@ -395,7 +393,5 @@ contract LandRegistration1155 is ERC1155, AccessControl {
     function revokeBuyerRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
         _revokeRole(BUYER_ROLE, a); 
     }
-    function revokeRegulatorRole(address a) external onlyRole(DEFAULT_ADMIN_ROLE) { 
-        _revokeRole(REGULATOR_ROLE, a); 
-    }
+    // Removed revokeRegulatorRole function
 }

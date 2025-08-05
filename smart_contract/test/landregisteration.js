@@ -2,13 +2,13 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
 describe("LandRegistration1155 contract", function () {
-  let land, admin, seller, buyer, regulator, other;
+  let land, admin, seller, buyer, other;
 
   /* --------------------------------------------------------------------- */
   /*                               SET-UP                                  */
   /* --------------------------------------------------------------------- */
   beforeEach(async function () {
-    [admin, seller, buyer, regulator, other] = await ethers.getSigners();
+    [admin, seller, buyer, other] = await ethers.getSigners();
 
     const Land = await ethers.getContractFactory("LandRegistration1155");
     land = await Land.deploy("ipfs://metadata/{id}.json");
@@ -17,7 +17,7 @@ describe("LandRegistration1155 contract", function () {
     /* ── bootstrap roles ── */
     await land.connect(admin).grantSellerRole(seller.address);
     await land.connect(admin).grantBuyerRole(buyer.address);
-    await land.connect(admin).grantRegulatorRole(regulator.address);
+    // Removed grantRegulatorRole since it doesn't exist in updated contract
   });
 
   /* --------------------------------------------------------------------- */
@@ -66,7 +66,7 @@ describe("LandRegistration1155 contract", function () {
     expect(await land.balanceOf(buyer.address, 1n)).to.equal(1n);
 
     const [, currentOwner] = await land
-      .connect(regulator)
+      .connect(admin)  // Changed from regulator to admin
       .getLandDetails(1n);
 
     expect(currentOwner).to.equal(buyer.address);
@@ -103,12 +103,12 @@ describe("LandRegistration1155 contract", function () {
   /* --------------------------------------------------------------------- */
   /*                  💠  DATA-ACCESS PERMISSIONS 💠                         */
   /* --------------------------------------------------------------------- */
-  it("allows regulator to fetch land details", async function () {
+  it("allows admin to fetch land details", async function () {  // Updated test name
     await land
       .connect(seller)
       .registerLand("123 Elm St", 500, 12_345, "Elm House");
 
-    const [info] = await land.connect(regulator).getLandDetails(1n);
+    const [info] = await land.connect(admin).getLandDetails(1n);  // Changed from regulator to admin
 
     expect(info.propertyAddress).to.equal("123 Elm St");
     expect(info.propertyName).to.equal("Elm House");
@@ -126,7 +126,7 @@ describe("LandRegistration1155 contract", function () {
 
   it("reverts when querying non-existent land", async function () {
     await expect(
-      land.connect(regulator).getLandDetails(99n)
+      land.connect(admin).getLandDetails(99n)  // Changed from regulator to admin
     ).to.be.revertedWith("land does not exist");
   });
 
@@ -201,8 +201,8 @@ describe("LandRegistration1155 contract", function () {
     it("blocks transactions from flagged pairs", async function () {
       const ONE_ETH = ethers.parseEther("1");
       
-      // Manually flag the pair
-      await land.connect(regulator).setFlaggedPair(buyer.address, seller.address, true);
+      // Manually flag the pair using admin
+      await land.connect(admin).setFlaggedPair(buyer.address, seller.address, true);  // Changed from regulator to admin
       
       // Transaction should be blocked
       await expect(
@@ -210,23 +210,23 @@ describe("LandRegistration1155 contract", function () {
       ).to.be.revertedWith("Transaction blocked: flagged pair");
     });
 
-    it("allows regulators to manually flag/unflag pairs", async function () {
+    it("allows admin to manually flag/unflag pairs", async function () {  // Updated test name
       // Initially not flagged
       expect(await land.isPairFlagged(buyer.address, seller.address)).to.be.false;
       
-      // Regulator flags the pair
+      // Admin flags the pair
       await expect(
-        land.connect(regulator).setFlaggedPair(buyer.address, seller.address, true)
+        land.connect(admin).setFlaggedPair(buyer.address, seller.address, true)  // Changed from regulator to admin
       ).to.emit(land, "PairFlagged");
       
       expect(await land.isPairFlagged(buyer.address, seller.address)).to.be.true;
       
-      // Regulator unflags the pair
-      await land.connect(regulator).setFlaggedPair(buyer.address, seller.address, false);
+      // Admin unflags the pair
+      await land.connect(admin).setFlaggedPair(buyer.address, seller.address, false);  // Changed from regulator to admin
       expect(await land.isPairFlagged(buyer.address, seller.address)).to.be.false;
     });
 
-    it("allows regulators to view transaction history", async function () {
+    it("allows admin to view transaction history", async function () {  // Updated test name
       const ONE_ETH = ethers.parseEther("1");
       
       // Make a few transactions
@@ -236,14 +236,14 @@ describe("LandRegistration1155 contract", function () {
       await land.connect(seller).listWhole(2n, ONE_ETH);
       await land.connect(buyer).buyWhole(2n, { value: ONE_ETH });
       
-      // Regulator should be able to view history
-      const history = await land.connect(regulator).getTransactionHistory(buyer.address, seller.address);
+      // Admin should be able to view history
+      const history = await land.connect(admin).getTransactionHistory(buyer.address, seller.address);  // Changed from regulator to admin
       expect(history).to.have.lengthOf(2);
       expect(history[0]).to.equal(1n);
       expect(history[1]).to.equal(2n);
     });
 
-    it("prevents non-regulators from viewing transaction history", async function () {
+    it("prevents non-admin from viewing transaction history", async function () {  // Updated test name
       await expect(
         land.connect(other).getTransactionHistory(buyer.address, seller.address)
       ).to.be.revertedWithCustomError(land, "AccessControlUnauthorizedAccount");
@@ -278,6 +278,22 @@ describe("LandRegistration1155 contract", function () {
       
       const newCount = await land.getTransactionCount(buyer.address, other.address);
       expect(newCount).to.equal(initialCount + 1n);
+    });
+
+    // NEW: Test admin's regulatory powers
+    it("allows admin to delist properties", async function () {
+      const ONE_ETH = ethers.parseEther("1");
+      
+      // Property owner delists normally
+      await land.connect(seller).delistWhole(1n);
+      
+      // List again for admin test
+      await land.connect(seller).listWhole(1n, ONE_ETH);
+      
+      // Admin can also delist (regulatory power)
+      await expect(
+        land.connect(admin).delistWhole(1n)
+      ).to.emit(land, "WholeDelisted");
     });
   });
 });
