@@ -13,7 +13,7 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(100% 0.00011 271.152);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
@@ -49,7 +49,7 @@
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: oklch(100% 0.00011 271.152);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.396 0.141 25.723);
@@ -143,9 +143,13 @@
   position: relative;
   padding: 1px;
   border-radius: 0.75rem;
-  background: linear-gradient(45deg, #6b21a8, #e9d5ff, #6b21a8);
-  background-size: 200% 200%;
-  animation: gradient-shift 4s ease infinite;
+  /* background: linear-gradient(45deg, #6b21a8, #e9d5ff, #); */
+  /* background: #A04BEE ;
+  background-size: 200% 200%6b21a8;
+  animation: gradient-shift 4s ease infinite; */
+  background: linear-gradient(-45deg, #6b21a8, #9333ea, #a855f7, #e9d5ff);
+  background-size: 400% 400%;
+  animation: gradient-shift 8s ease infinite;
 }
 
 .gradient-border-content {
