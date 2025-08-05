@@ -34,7 +34,7 @@ export default function LandingPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen w-[100vw] bg-background">
       <Navbar />
 
       {/* Hero Section */}
@@ -88,16 +88,16 @@ export default function LandingPage() {
             {features.map((feature, index) => {
               const Icon = feature.icon
               return (
-                <div key={index} className="gradient-border">
+                <div key={index} className="animated-gradient rounded-xl">
                   <Card className="gradient-border-content border-0 h-full text-center">
                     <CardHeader>
                       <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-800/10 to-purple-100/10 flex items-center justify-center">
                         <Icon className="h-8 w-8 text-purple-800 dark:text-purple-100" />
                       </div>
-                      <CardTitle className="text-white text-2xl">{feature.title}</CardTitle>
+                      <CardTitle>{feature.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <CardDescription className="text-white text-md">{feature.description}</CardDescription>
+                      <CardDescription className="text-base text-white">{feature.description}</CardDescription>
                     </CardContent>
                   </Card>
                 </div>

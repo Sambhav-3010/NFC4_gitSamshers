@@ -34,7 +34,7 @@ export default function RegisterPropertyPage() {
   useEffect(() => {
     const isAuthenticated = localStorage.getItem("isAuthenticated")
     if (!isAuthenticated) {
-      router.push("/auth/login")
+      // router.push("/auth/login")
     }
   }, [router])
 

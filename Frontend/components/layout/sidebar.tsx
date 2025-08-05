@@ -28,9 +28,8 @@ export default function Sidebar({ userRole, userEmail }: SidebarProps) {
 
   const navigationItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, roles: ["buyer", "seller", "regulator"] },
-    { name: "Properties", href: "/properties", icon: Building2, roles: ["buyer", "seller", "regulator"] },
     { name: "Marketplace", href: "/marketplace", icon: Store, roles: ["buyer", "seller"] },
-    { name: "Verification", href: "/verification", icon: Shield, roles: ["regulator"] },
+    { name: "Verification", href: "/", icon: Shield, roles: ["regulator"] },
   ]
 
   const filteredNavigation = navigationItems.filter((item) => item.roles.includes(userRole))
