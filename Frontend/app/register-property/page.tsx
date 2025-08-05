@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
+import React, { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
-import { CheckCircle, Building2, MapPin } from "lucide-react" // Removed Upload, X, FileText as they are no longer needed here
+import { CheckCircle, Building2, MapPin } from "lucide-react"
 
 export default function RegisterPropertyPage() {
   const [formData, setFormData] = useState({
@@ -25,62 +23,151 @@ export default function RegisterPropertyPage() {
     price: "",
     description: "",
   })
-  // Removed documents state as property image upload is now on verify-land
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
   const router = useRouter()
 
+  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null)
+  const [propertyDocFile, setPropertyDocFile] = useState<File | null>(null)
+
+  // Camera modal states
+  const [isCameraModalOpen, setIsCameraModalOpen] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [liveCaptureImage, setLiveCaptureImage] = useState<File | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("isAuthenticated")
-    if (!isAuthenticated) {
-      // router.push("/auth/login") // Uncomment this if authentication is required before registration
+    // Cleanup camera stream on unmount
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream
+        stream.getTracks().forEach((track) => track.stop())
+        videoRef.current.srcObject = null
+      }
+      setIsStreaming(false)
     }
-  }, [router])
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+
+    const startCamera = async () => {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+          if (videoRef.current && mounted) {
+            videoRef.current.srcObject = stream
+            setIsStreaming(true)
+          }
+        } catch {
+          alert("Unable to access camera")
+          setIsStreaming(false)
+        }
+      } else {
+        alert("Camera not supported by browser")
+      }
+    }
+
+    if (isCameraModalOpen && !liveCaptureImage) {
+      startCamera()
+    }
+
+    return () => {
+      mounted = false
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream
+        stream.getTracks().forEach((track) => track.stop())
+        videoRef.current.srcObject = null
+      }
+      setIsStreaming(false)
+    }
+  }, [isCameraModalOpen, liveCaptureImage])
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
-
     if (!formData.title.trim()) newErrors.title = "Property title is required"
     if (!formData.address.trim()) newErrors.address = "Address is required"
     if (!formData.area.trim()) newErrors.area = "Area is required"
     if (!formData.ownerId.trim()) newErrors.ownerId = "Owner ID is required"
     if (!formData.price.trim()) newErrors.price = "Price is required"
     if (!formData.description.trim()) newErrors.description = "Description is required"
-
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }))
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }))
+  }
+
+  const renameFileWithSuffix = (file: File, suffix: string) => {
+    const dotIndex = file.name.lastIndexOf(".")
+    const namePart = dotIndex !== -1 ? file.name.substring(0, dotIndex) : file.name
+    const extension = dotIndex !== -1 ? file.name.substring(dotIndex) : ""
+    return new File([file], `${namePart}${suffix}${extension}`, { type: file.type })
+  }
+
+  const validateFiles = () => {
+    if (!aadhaarFile) { alert("Please upload the Aadhaar image."); return false }
+    if (!propertyDocFile) { alert("Please upload the Property document image."); return false }
+    if (!liveCaptureImage) { alert("Please capture the Live Camera image."); return false }
+    return true
+  }
+
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const width = videoRef.current.videoWidth
+      const height = videoRef.current.videoHeight
+      canvasRef.current.width = width
+      canvasRef.current.height = height
+      const ctx = canvasRef.current.getContext("2d")
+      if (ctx) {
+        ctx.drawImage(videoRef.current, 0, 0, width, height)
+        canvasRef.current.toBlob((blob) => {
+          if (blob) {
+            setLiveCaptureImage(new File([blob], "livephoto_live.png", { type: "image/png" }))
+          }
+        }, "image/png")
+      }
     }
   }
 
-  // Removed handleFileUpload and removeDocument as document upload is moved
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateForm()) return
-
+    if (!validateForm() || !validateFiles()) return
     setIsLoading(true)
 
-    // Simulate API call for registering property details
-    setTimeout(() => {
+    try {
+      const aadhaarRenamed = renameFileWithSuffix(aadhaarFile!, "_id")
+      const propertyDocRenamed = renameFileWithSuffix(propertyDocFile!, "_deed")
+
+      const data = new FormData()
+      data.append("aadhaarImage", aadhaarRenamed)
+      data.append("propertyDeedImage", propertyDocRenamed)
+      data.append("liveCaptureImage", liveCaptureImage!)
+
+      for (const [key, value] of Object.entries(formData)) {
+        data.append(key, value)
+      }
+
+      const response = await fetch("http://localhost:7000/upload", {
+        method: "POST",
+        body: data,
+      })
+
+      if (!response.ok) throw new Error("Failed to upload property data and images.")
+
       setIsLoading(false)
       setShowSuccess(true)
-
-      // Store a flag in localStorage to indicate property details are submitted
-      // This can be used by /verify-land to ensure proper flow
       localStorage.setItem("propertyDetailsSubmitted", "true")
 
-      setTimeout(() => {
-        // Redirect to the verify-land page for property document upload
-        router.push("/verify-land")
-      }, 2000)
-    }, 2000)
+      setTimeout(() => router.push("/verify-land"), 2000)
+    } catch (error) {
+      setIsLoading(false)
+      alert(error instanceof Error ? error.message : "Unknown error occurred")
+    }
   }
 
   if (showSuccess) {
@@ -97,7 +184,7 @@ export default function RegisterPropertyPage() {
                 Property Details Submitted!
               </h2>
               <p className="text-muted-foreground mb-4">
-                Your property details have been recorded. Now, let's upload the property proof.
+                Your property details and images have been recorded. Redirecting...
               </p>
               <p className="text-sm text-muted-foreground">Redirecting to property verification...</p>
             </CardContent>
@@ -110,7 +197,6 @@ export default function RegisterPropertyPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-
       <main className="px-4 py-8">
         <div className="space-y-8">
           {/* Header */}
@@ -129,7 +215,7 @@ export default function RegisterPropertyPage() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <form onSubmit={handleSubmit} className="space-y-6" encType="multipart/form-data">
             <div className="grid gap-6 lg:grid-cols-2">
               {/* Basic Information */}
               <Card className="glass">
@@ -150,11 +236,7 @@ export default function RegisterPropertyPage() {
                       onChange={(e) => handleInputChange("title", e.target.value)}
                       className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.title ? "border-red-500" : ""}`}
                     />
-                    {errors.title && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.title}</AlertDescription>
-                      </Alert>
-                    )}
+                    {errors.title && <Alert variant="destructive"><AlertDescription>{errors.title}</AlertDescription></Alert>}
                   </div>
 
                   <div className="space-y-2">
@@ -167,11 +249,7 @@ export default function RegisterPropertyPage() {
                       onChange={(e) => handleInputChange("address", e.target.value)}
                       className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.address ? "border-red-500" : ""}`}
                     />
-                    {errors.address && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.address}</AlertDescription>
-                      </Alert>
-                    )}
+                    {errors.address && <Alert variant="destructive"><AlertDescription>{errors.address}</AlertDescription></Alert>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -184,11 +262,7 @@ export default function RegisterPropertyPage() {
                         onChange={(e) => handleInputChange("area", e.target.value)}
                         className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.area ? "border-red-500" : ""}`}
                       />
-                      {errors.area && (
-                        <Alert variant="destructive">
-                          <AlertDescription>{errors.area}</AlertDescription>
-                        </Alert>
-                      )}
+                      {errors.area && <Alert variant="destructive"><AlertDescription>{errors.area}</AlertDescription></Alert>}
                     </div>
 
                     <div className="space-y-2">
@@ -200,11 +274,7 @@ export default function RegisterPropertyPage() {
                         onChange={(e) => handleInputChange("price", e.target.value)}
                         className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.price ? "border-red-500" : ""}`}
                       />
-                      {errors.price && (
-                        <Alert variant="destructive">
-                          <AlertDescription>{errors.price}</AlertDescription>
-                        </Alert>
-                      )}
+                      {errors.price && <Alert variant="destructive"><AlertDescription>{errors.price}</AlertDescription></Alert>}
                     </div>
                   </div>
 
@@ -217,11 +287,7 @@ export default function RegisterPropertyPage() {
                       onChange={(e) => handleInputChange("ownerId", e.target.value)}
                       className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.ownerId ? "border-red-500" : ""}`}
                     />
-                    {errors.ownerId && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.ownerId}</AlertDescription>
-                      </Alert>
-                    )}
+                    {errors.ownerId && <Alert variant="destructive"><AlertDescription>{errors.ownerId}</AlertDescription></Alert>}
                   </div>
 
                   <div className="space-y-2">
@@ -234,16 +300,12 @@ export default function RegisterPropertyPage() {
                       onChange={(e) => handleInputChange("description", e.target.value)}
                       className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.description ? "border-red-500" : ""}`}
                     />
-                    {errors.description && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.description}</AlertDescription>
-                      </Alert>
-                    )}
+                    {errors.description && <Alert variant="destructive"><AlertDescription>{errors.description}</AlertDescription></Alert>}
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Location Coordinates */}
+              {/* Location and Uploads */}
               <div className="space-y-6">
                 <Card className="glass">
                   <CardHeader>
@@ -265,6 +327,7 @@ export default function RegisterPropertyPage() {
                           className="bg-background/50 border-purple-800/20 dark:border-purple-100/20"
                         />
                       </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="longitude">Longitude</Label>
                         <Input
@@ -278,17 +341,79 @@ export default function RegisterPropertyPage() {
                     </div>
                   </CardContent>
                 </Card>
-                {/* The "Document Upload" card is removed from here */}
+
+                <Card className="glass">
+                  <CardHeader>
+                    <CardTitle>Upload Documents and Live Capture</CardTitle>
+                    <CardDescription>Upload your Aadhaar image, property document, and capture a live image using your camera.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Aadhaar Image Upload */}
+                    <div>
+                      <Label htmlFor="aadhaarFile">Aadhaar Image *</Label>
+                      <input
+                        id="aadhaarFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) setAadhaarFile(file)
+                        }}
+                        className="mt-1"
+                      />
+                      {aadhaarFile && <p className="mt-2 text-sm text-muted-foreground">Selected file: {aadhaarFile.name}</p>}
+                    </div>
+
+                    {/* Property Document Upload */}
+                    <div>
+                      <Label htmlFor="propertyDocFile">Property Document Image *</Label>
+                      <input
+                        id="propertyDocFile"
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (file) setPropertyDocFile(file)
+                        }}
+                        className="mt-1"
+                      />
+                      {propertyDocFile && <p className="mt-2 text-sm text-muted-foreground">Selected file: {propertyDocFile.name}</p>}
+                    </div>
+
+                    {/* Live Camera Capture */}
+                    <div>
+                      <Label>Live Camera Capture Image *</Label>
+                      {!liveCaptureImage && (
+                        <Button type="button" onClick={() => setIsCameraModalOpen(true)} className="mt-2" variant="outline">
+                          Capture with Camera
+                        </Button>
+                      )}
+                      {liveCaptureImage && (
+                        <div className="flex flex-col items-start mt-2">
+                          <img
+                            src={URL.createObjectURL(liveCaptureImage)}
+                            alt="Live capture preview"
+                            style={{ width: 160, borderRadius: 8 }}
+                          />
+                          <Button type="button" variant="outline" className="mt-2" onClick={() => setIsCameraModalOpen(true)}>
+                            Retake
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Submit Buttons */}
             <div className="flex justify-end space-x-4">
               <Button
                 type="button"
                 variant="outline"
                 className="border-purple-800/20 dark:border-purple-100/20 bg-transparent"
-                onClick={() => router.back()} // Added a back button for convenience
+                onClick={() => router.back()}
+                disabled={isLoading}
               >
                 Cancel
               </Button>
@@ -304,6 +429,86 @@ export default function RegisterPropertyPage() {
         </div>
       </main>
 
+      {/* Camera Modal Overlay */}
+      {isCameraModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            zIndex: 1000,
+            inset: 0,
+            background: "rgba(10,10,10,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              background: "#fff",
+              padding: 24,
+              borderRadius: 8,
+              boxShadow: "0 0 16px 2px #222",
+              minWidth: 320,
+              maxWidth: "95vw",
+            }}
+          >
+            <h2 style={{ marginBottom: 12 }}>Live Camera</h2>
+            {(!liveCaptureImage || isStreaming) ? (
+              <div style={{ width: 320 }}>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  style={{ width: "100%", borderRadius: 8 }}
+                />
+                <canvas ref={canvasRef} style={{ display: "none" }} />
+                <div className="flex gap-2 mt-2">
+                  <Button type="button" onClick={handleCapture} className="mt-2">
+                    Capture
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setLiveCaptureImage(null)
+                      setIsCameraModalOpen(false)
+                    }}
+                    className="mt-2"
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ width: 320 }}>
+                <img
+                  src={URL.createObjectURL(liveCaptureImage)}
+                  alt="Live preview"
+                  style={{ width: "100%", borderRadius: 8 }}
+                />
+                <div className="flex gap-2 mt-2">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setLiveCaptureImage(null)
+                      setTimeout(() => setIsCameraModalOpen(true), 120)
+                    }}
+                  >
+                    Retake
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => setIsCameraModalOpen(false)}
+                    variant="outline"
+                  >
+                    Done
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       <Footer />
     </div>
   )
