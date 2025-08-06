@@ -35,7 +35,6 @@ export default function SignupPage() {
     email: "",
     password: "",
     confirmPassword: "",
-    role: "",
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -43,26 +42,7 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const roles = [
-    {
-      value: "buyer",
-      label: "Buyer",
-      icon: UserCheck,
-      description: "Purchase properties",
-    },
-    {
-      value: "seller",
-      label: "Seller",
-      icon: Building2,
-      description: "List and sell properties",
-    },
-    {
-      value: "regulator",
-      label: "Regulator",
-      icon: Gavel,
-      description: "Verify and approve transactions",
-    },
-  ];
+
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -83,7 +63,6 @@ export default function SignupPage() {
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = "Passwords do not match";
     }
-    if (!formData.role) newErrors.role = "Please select your role";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -106,7 +85,6 @@ export default function SignupPage() {
       localStorage.setItem("isAuthenticated", "true");
       localStorage.setItem("userEmail", formData.email);
       localStorage.setItem("userName", formData.name);
-      localStorage.setItem("userRole", formData.role);
       router.push("/profile");
       setIsLoading(false);
     }, 1000);
@@ -194,44 +172,6 @@ export default function SignupPage() {
                 {errors.email && (
                   <Alert variant="destructive">
                     <AlertDescription>{errors.email}</AlertDescription>
-                  </Alert>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  onValueChange={(value) => handleInputChange("role", value)}
-                >
-                  <SelectTrigger
-                    className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 w-full ${
-                      errors.role ? "border-red-500" : ""
-                    }`}
-                  >
-                    <SelectValue placeholder="Select your role" />
-                  </SelectTrigger>
-                  <SelectContent >
-                    {roles.map((role) => {
-                      const Icon = role.icon;
-                      return (
-                        <SelectItem key={role.value} value={role.value}>
-                          <div className="flex items-center">
-                            <Icon className="h-4 w-4 mr-2" />
-                            <div>
-                              <div className="font-medium">{role.label}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {role.description}
-                              </div>
-                            </div>
-                          </div>
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-                {errors.role && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{errors.role}</AlertDescription>
                   </Alert>
                 )}
               </div>

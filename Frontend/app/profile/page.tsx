@@ -8,31 +8,69 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
-import { User, Building2, Plus, MapPin, Eye, Edit, Trash2 } from "lucide-react"
+import { User, Building2, Plus, MapPin, Eye } from "lucide-react" // Removed Edit, Trash2
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+// Define the structure of a property for type safety
+interface Property {
+  id: number;
+  title: string;
+  address: string; // Renamed from 'location' for consistency with ProfilePage's mock data
+  area: string;
+  price: string;
+  status: string;
+  image: string;
+  // Added for consistency with marketplace/details page, though not all may be displayed here
+  type?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  verified?: boolean;
+  views?: number;
+  likes?: number;
+  description?: string;
+  ownerId?: string;
+  latitude?: string;
+  longitude?: string;
+}
 
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null)
-  const [properties, setProperties] = useState([
-    {
-      id: 1,
-      title: "Modern Villa in Gurgaon",
-      address: "Sector 45, Gurgaon, Haryana",
-      area: "3500 sq ft",
-      price: "₹2.5 Cr",
-      status: "Listed",
-      image: "/placeholder.svg?height=200&width=300&text=Villa",
-    },
-    {
-      id: 2,
-      title: "Luxury Apartment",
-      address: "Bandra West, Mumbai, Maharashtra",
-      area: "1800 sq ft",
-      price: "₹3.2 Cr",
-      status: "Sold",
-      image: "/placeholder.svg?height=200&width=300&text=Apartment",
-    },
-  ])
+  // Initialize properties from localStorage or use a default if localStorage is empty
+  const [properties, setProperties] = useState<Property[]>(() => {
+    if (typeof window !== 'undefined') {
+      const savedProperties = localStorage.getItem("properties");
+      // If properties exist in localStorage, parse them. Otherwise, use a default minimal set.
+      // Note: The structure here is simpler than marketplace's mockProperties,
+      // so we'll only load basic fields if they exist in localStorage.
+      if (savedProperties) {
+        const parsedProperties: Property[] = JSON.parse(savedProperties);
+        // Filter to only include properties relevant to the current user if a user ID was tracked
+        // For now, we'll just return all properties from localStorage.
+        return parsedProperties;
+      }
+    }
+    // Fallback if localStorage is not available or empty
+    return [
+      {
+        id: 1,
+        title: "Modern Villa in Gurgaon",
+        address: "Sector 45, Gurgaon, Haryana",
+        area: "3500 sq ft",
+        price: "₹2.5 Cr",
+        status: "Listed",
+        image: "/placeholder.svg?height=200&width=300&text=Villa",
+      },
+      {
+        id: 2,
+        title: "Luxury Apartment",
+        address: "Bandra West, Mumbai, Maharashtra",
+        area: "1800 sq ft",
+        price: "₹3.2 Cr",
+        status: "Sold",
+        image: "/placeholder.svg?height=200&width=300&text=Apartment",
+      },
+    ];
+  })
   const router = useRouter()
   const [filterStatus, setFilterStatus] = useState("All")
 
@@ -46,13 +84,28 @@ export default function ProfilePage() {
     setUser({
       name: localStorage.getItem("userName") || "John Doe",
       email: localStorage.getItem("userEmail") || "john@example.com",
-      role: localStorage.getItem("userRole") || "buyer",
+      role: localStorage.getItem("userRole") || "buyer", // Ensure role is fetched
     })
   }, [router])
 
+  // Function to handle viewing property details
+  const handleViewDetails = (propertyId: number) => {
+    router.push(`/details/${propertyId}`);
+  };
+
   const handleAddToMarketplace = (propertyId: number) => {
-    setProperties((prev) => prev.map((prop) => (prop.id === propertyId ? { ...prop, status: "On Sale" } : prop)))
-  }
+    // In a real app, this would update the property status on the blockchain/backend
+    // For now, we'll simulate updating the status in localStorage
+    setProperties((prev) => {
+      const updatedProperties = prev.map((prop) =>
+        prop.id === propertyId ? { ...prop, status: "On Sale" } : prop
+      );
+      if (typeof window !== 'undefined') {
+        localStorage.setItem("properties", JSON.stringify(updatedProperties));
+      }
+      return updatedProperties;
+    });
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -161,7 +214,7 @@ export default function ProfilePage() {
                   asChild
                   className="w-full border-purple-800/20 dark:border-purple-100/20 bg-transparent"
                 >
-                  <Link href="/verify-documents">Verify Documents</Link>
+                  <Link href="/verify-land">Verify Documents</Link>
                 </Button>
                 <Button
                   variant="outline"
@@ -238,6 +291,9 @@ export default function ProfilePage() {
                             src={property.image || "/placeholder.svg"}
                             alt={property.title}
                             className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.src = `https://placehold.co/300x200/E0E0E0/333333?text=${encodeURIComponent(property.title)}`;
+                            }}
                           />
                         </div>
                         <CardHeader>
@@ -275,23 +331,10 @@ export default function ProfilePage() {
                             <Button
                               size="sm"
                               variant="outline"
-                              className="border-purple-800/20 dark:border-purple-100/20 bg-transparent"
+                              className="flex-1 border-purple-800/20 dark:border-purple-100/20 bg-transparent"
+                              onClick={() => handleViewDetails(property.id)} // New: View Details button
                             >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-purple-800/20 dark:border-purple-100/20 bg-transparent"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="border-purple-800/20 dark:border-purple-100/20 text-red-600 hover:text-red-700 bg-transparent"
-                            >
-                              <Trash2 className="h-4 w-4" />
+                              <Eye className="h-4 w-4 mr-2" /> View Details
                             </Button>
                           </div>
                         </CardContent>
