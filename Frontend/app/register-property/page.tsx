@@ -9,7 +9,7 @@ import axios from "axios"
 import { ethers } from "ethers"
 import LandRegistration1155ABI from "@/lib/LandReg.json"
 import { toast } from "sonner"
-import { useRouter } from 'next/router'
+import { useRouter } from "next/navigation"
 
 const CONTRACT_ADDRESS = "0xYourContractAddressHere"
 
