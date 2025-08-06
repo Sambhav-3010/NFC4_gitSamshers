@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import axios from "axios"
 
+import { ethers } from "ethers"
+import LandRegistration1155ABI from "@/lib/LandReg.json"
+import { toast } from "sonner"
+
+const CONTRACT_ADDRESS = "0xYourContractAddressHere" // 🔁 Replace this with the actual address
+
+
+
 export default function RegisterPropertyPage() {
   const [fullName, setFullName] = useState("")
   const [govtIdNumber, setGovtIdNumber] = useState("")
