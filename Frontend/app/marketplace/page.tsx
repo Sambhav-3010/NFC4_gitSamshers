@@ -46,6 +46,10 @@ const mockProperties = [
     verified: true,
     views: 1247,
     likes: 89,
+    description: "An exquisite villa featuring a private pool, lush gardens, and smart home technology. Located in a prime residential area with excellent connectivity.",
+    ownerId: "0xOwner123abc",
+    latitude: "28.4595",
+    longitude: "77.0266"
   },
   {
     id: 2,
@@ -61,6 +65,10 @@ const mockProperties = [
     verified: true,
     views: 892,
     likes: 67,
+    description: "Contemporary apartment with stunning city views, modern amenities, and access to a state-of-the-art gym. Ideal for urban living.",
+    ownerId: "0xOwner456def",
+    latitude: "19.0760",
+    longitude: "72.8777"
   },
   {
     id: 3,
@@ -76,6 +84,10 @@ const mockProperties = [
     verified: true,
     views: 2156,
     likes: 134,
+    description: "Spacious commercial office space in a bustling business district. Features multiple cabins, conference rooms, and ample parking.",
+    ownerId: "0xOwner789ghi",
+    latitude: "12.9716",
+    longitude: "77.5946"
   },
   {
     id: 4,
@@ -91,6 +103,10 @@ const mockProperties = [
     verified: true,
     views: 1678,
     likes: 156,
+    description: "Luxurious penthouse offering panoramic city views, high-end finishes, and exclusive access to rooftop amenities. A true urban oasis.",
+    ownerId: "0xOwner012jkl",
+    latitude: "28.6139",
+    longitude: "77.2090"
   },
   {
     id: 5,
@@ -106,6 +122,10 @@ const mockProperties = [
     verified: false,
     views: 743,
     likes: 45,
+    description: "Expansive farmhouse property with vast agricultural land, perfect for a serene retreat or agricultural ventures. Includes a large main house and outbuildings.",
+    ownerId: "0xOwner345mno",
+    latitude: "18.7500",
+    longitude: "73.4000"
   },
   {
     id: 6,
@@ -121,11 +141,14 @@ const mockProperties = [
     verified: true,
     views: 456,
     likes: 23,
+    description: "Compact and efficient studio apartment, ideal for singles or couples. Located near major IT hubs with easy access to public transport.",
+    ownerId: "0xOwner678pqr",
+    latitude: "18.5204",
+    longitude: "73.8567"
   },
 ];
 
 export default function MarketplacePage() {
-  const [userRole, setUserRole] = useState<string>("");
   const [userEmail, setUserEmail] = useState<string>("");
   const [properties, setProperties] = useState(mockProperties);
   const [searchTerm, setSearchTerm] = useState("");
@@ -136,16 +159,14 @@ export default function MarketplacePage() {
   const router = useRouter();
 
   useEffect(() => {
-    const role = localStorage.getItem("userRole");
     const email = localStorage.getItem("userEmail");
     const isAuthenticated = localStorage.getItem("isAuthenticated");
 
-    if (!role || !email || !isAuthenticated) {
+    if (!email || !isAuthenticated) {
       router.push("/auth/login");
       return;
     }
 
-    setUserRole(role);
     setUserEmail(email);
   }, [router]);
 
@@ -175,17 +196,24 @@ export default function MarketplacePage() {
     const matchesStatus =
       statusFilter === "all" || property.status === statusFilter;
 
-    return matchesSearch && matchesLocation && matchesType && matchesStatus;
+    // Basic price filter logic (can be expanded for ranges)
+    const matchesPrice = priceFilter === "all" ||
+      (priceFilter === "under-1cr" && parseFloat(property.price.replace(/[₹ CrL,]/g, '')) < 100) || // Assuming 'L' is Lakhs, 'Cr' is Crores
+      (priceFilter === "1-3cr" && parseFloat(property.price.replace(/[₹ CrL,]/g, '')) >= 1 && parseFloat(property.price.replace(/[₹ CrL,]/g, '')) < 3) ||
+      (priceFilter === "3-5cr" && parseFloat(property.price.replace(/[₹ CrL,]/g, '')) >= 3 && parseFloat(property.price.replace(/[₹ CrL,]/g, '')) < 5) ||
+      (priceFilter === "above-5cr" && parseFloat(property.price.replace(/[₹ CrL,]/g, '')) >= 5);
+
+    return matchesSearch && matchesLocation && matchesType && matchesStatus && matchesPrice;
   });
 
   const handlePropertyAction = (propertyId: number, action: string) => {
     console.log(`${action} property ${propertyId}`);
-    // Placeholder for property actions
+    if (action === "purchase") {
+      router.push(`/purchase/${propertyId}`); // Redirect to the purchase page
+    } else if (action === "view") {
+      router.push(`/details/${propertyId}`); // Redirect to the property details page
+    }
   };
-
-  if (!userRole) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <>
@@ -339,6 +367,9 @@ export default function MarketplacePage() {
                       src={property.image || "/placeholder.svg"}
                       alt={property.title}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = `https://placehold.co/300x200/E0E0E0/333333?text=${encodeURIComponent(property.title)}`;
+                      }}
                     />
                     <div className="absolute top-2 right-2 flex space-x-1">
                       <Button
@@ -418,7 +449,7 @@ export default function MarketplacePage() {
                       </div>
                     </div>
 
-                    <div className="flex space-x-2">
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                       <Button
                         className="flex-1 bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
                         onClick={() =>
