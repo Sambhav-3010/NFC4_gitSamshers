@@ -31,6 +31,24 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Navbar } from "@/components/navbar";
 
+import { ethers } from "ethers";
+import contractABI from "@/lib/LandReg.json"; // adjust path
+import { getContract, connectWallet } from "@/lib/ethers"; // adjust path
+
+type Land = {
+  id: number;
+  propertyAddress: string;
+  totalLandArea: number;
+  propertyName: string;
+  forSale: boolean;
+  wholePrice: number;
+  isShared: boolean;
+  totalShares: number;
+  availableShares: number;
+  pricePerShare: number;
+};
+
+
 const mockProperties = [
   {
     id: 1,
@@ -156,6 +174,15 @@ export default function MarketplacePage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priceFilter, setPriceFilter] = useState("all");
+  
+   const [account, setAccount] = useState<string>("");
+  const [lands, setLands] = useState<Land[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [buying, setBuying] = useState<number | null>(null);
+  
+  
+  
+  
   const router = useRouter();
 
   useEffect(() => {
@@ -215,290 +242,197 @@ export default function MarketplacePage() {
     }
   };
 
-  return (
-    <>
-      <Navbar />
-      <div className="min-h-screen bg-background">
+    const fetchAllProperties = async () => {
+    setLoading(true);
+    try {
+      const contract = await getContract();
+      const ids: number[] = await contract.getPropertiesForSale();
 
-        <main className="p-6">
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="relative overflow-hidden rounded-2xl">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-800 via-purple-600 to-purple-100"></div>
-              <div className="relative px-8 py-12">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <h1 className="text-3xl font-bold text-white mb-2">
-                      Property Marketplace
-                    </h1>
-                    <p className="text-purple-100">
-                      Discover verified real estate with blockchain technology
-                    </p>
-                  </div>
-                  <div className="mt-4 md:mt-0 flex space-x-3">
-                    <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm">
-                      <Zap className="mr-2 h-4 w-4" />
-                      AI Recommendations
-                    </Button>
-                  </div>
+      const landList: Land[] = await Promise.all(
+        ids.map(async (id: number) => {
+          const details = await contract.getMarketplaceDetails(id);
+          return {
+            id,
+            propertyAddress: details[0],
+            totalLandArea: Number(details[1]),
+            propertyName: details[2],
+            forSale: details[3],
+            wholePrice: Number(details[4]),
+            isShared: details[5],
+            totalShares: Number(details[6]),
+            availableShares: Number(details[7]),
+            pricePerShare: Number(details[8]),
+          };
+        })
+      );
+
+      setLands(landList);
+    } catch (err) {
+      console.error("Error loading properties:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+    const handleBuy = async (landId: number, price: number) => {
+    try {
+      const contract = await getContract();
+      setBuying(landId);
+      const tx = await contract.buyWhole(landId, { value: price });
+      await tx.wait();
+      alert("Land purchased successfully!");
+      fetchAllProperties(); // Refresh list
+    } catch (err) {
+      console.error("Error buying land:", err);
+      alert("Failed to buy land.");
+    } finally {
+      setBuying(null);
+    }
+  };
+
+  const init = async () => {
+    const acc = await connectWallet();
+    if (acc) setAccount(acc);
+    await fetchAllProperties();
+  };
+
+  useEffect(() => {
+    init();
+  }, []);
+
+  return (
+  <>
+    <Navbar />
+    <div className="min-h-screen bg-background">
+      <main className="p-6">
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="relative overflow-hidden rounded-2xl">
+            <div className="absolute inset-0 bg-gradient-to-r from-purple-800 via-purple-600 to-purple-100"></div>
+            <div className="relative px-8 py-12">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                <div>
+                  <h1 className="text-3xl font-bold text-white mb-2">
+                    Property Marketplace
+                  </h1>
+                  <p className="text-purple-100">
+                    Discover verified real estate with blockchain technology
+                  </p>
+                </div>
+                <div className="mt-4 md:mt-0 flex space-x-3">
+                  <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm">
+                    <Zap className="mr-2 h-4 w-4" />
+                    AI Recommendations
+                  </Button>
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Filters */}
-            <Card className="glass border-purple-800/20 dark:border-purple-100/20">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Filter className="mr-2 h-5 w-5 text-purple-800 dark:text-purple-100" />
-                  Search & Filters
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Search</label>
-                    <div className="relative">
-                      <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search properties..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-8 bg-background/50 border-purple-800/20 dark:border-purple-100/20 focus:ring-purple-800 dark:focus:ring-purple-100"
-                      />
-                    </div>
-                  </div>
+          {/* Property Listing */}
+          <div className="p-6 bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-800">
+            <h2 className="text-2xl font-bold mb-4 text-purple-800 dark:text-purple-100">
+              Available Properties
+            </h2>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Location</label>
-                    <Select
-                      value={locationFilter}
-                      onValueChange={setLocationFilter}
-                    >
-                      <SelectTrigger className="bg-background/50 border-purple-800/20 dark:border-purple-100/20">
-                        <SelectValue placeholder="All locations" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Locations</SelectItem>
-                        <SelectItem value="mumbai">Mumbai</SelectItem>
-                        <SelectItem value="delhi">Delhi</SelectItem>
-                        <SelectItem value="bangalore">Bangalore</SelectItem>
-                        <SelectItem value="gurgaon">Gurgaon</SelectItem>
-                        <SelectItem value="pune">Pune</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Type</label>
-                    <Select value={typeFilter} onValueChange={setTypeFilter}>
-                      <SelectTrigger className="bg-background/50 border-purple-800/20 dark:border-purple-100/20">
-                        <SelectValue placeholder="All types" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Types</SelectItem>
-                        <SelectItem value="villa">Villa</SelectItem>
-                        <SelectItem value="apartment">Apartment</SelectItem>
-                        <SelectItem value="commercial">Commercial</SelectItem>
-                        <SelectItem value="penthouse">Penthouse</SelectItem>
-                        <SelectItem value="farmhouse">Farmhouse</SelectItem>
-                        <SelectItem value="studio">Studio</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Status</label>
-                    <Select
-                      value={statusFilter}
-                      onValueChange={setStatusFilter}
-                    >
-                      <SelectTrigger className="bg-background/50 border-purple-800/20 dark:border-purple-100/20">
-                        <SelectValue placeholder="All status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Status</SelectItem>
-                        <SelectItem value="Tokenized">Tokenized</SelectItem>
-                        <SelectItem value="Pending Sale">
-                          Pending Sale
-                        </SelectItem>
-                        <SelectItem value="Smart Contract Verified">
-                          Smart Contract Verified
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Price Range</label>
-                    <Select value={priceFilter} onValueChange={setPriceFilter}>
-                      <SelectTrigger className="bg-background/50 border-purple-800/20 dark:border-purple-100/20">
-                        <SelectValue placeholder="All prices" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Prices</SelectItem>
-                        <SelectItem value="under-1cr">Under ₹1 Cr</SelectItem>
-                        <SelectItem value="1-3cr">₹1-3 Cr</SelectItem>
-                        <SelectItem value="3-5cr">₹3-5 Cr</SelectItem>
-                        <SelectItem value="above-5cr">Above ₹5 Cr</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Results */}
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-muted-foreground">
-                Showing {filteredProperties.length} of {properties.length}{" "}
-                properties
+            {loading ? (
+              <p className="text-muted-foreground">Loading properties...</p>
+            ) : lands.length === 0 ? (
+              <p className="text-muted-foreground">
+                No properties currently for sale.
               </p>
-            </div>
-
-            {/* Properties Grid */}
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {filteredProperties.map((property) => (
-                <Card
-                  key={property.id}
-                  className="overflow-hidden glass border-purple-800/20 dark:border-purple-100/20 hover:shadow-lg transition-shadow"
-                >
-                  <div className="aspect-video bg-muted relative">
-                    <img
-                      src={property.image || "/placeholder.svg"}
-                      alt={property.title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.currentTarget.src = `https://placehold.co/300x200/E0E0E0/333333?text=${encodeURIComponent(property.title)}`;
-                      }}
-                    />
-                    <div className="absolute top-2 right-2 flex space-x-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 bg-white/20 backdrop-blur-sm hover:bg-white/30"
-                        onClick={() =>
-                          handlePropertyAction(property.id, "like")
-                        }
-                      >
-                        <Heart className="h-4 w-4 text-white" />
-                      </Button>
-                    </div>
-                    <div className="absolute bottom-2 left-2">
-                      <Badge className={getStatusColor(property.status)}>
-                        {property.status}
-                      </Badge>
-                    </div>
-                  </div>
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg">
-                        {property.title}
-                      </CardTitle>
-                      {property.verified && (
-                        <Badge className="bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                          Verified
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {lands.map((land) => (
+                  <Card
+                    key={land.id}
+                    className="overflow-hidden glass border-purple-800/20 dark:border-purple-100/20 hover:shadow-lg transition-shadow"
+                  >
+                    <div className="aspect-video bg-muted relative">
+                      <img
+                        src="/placeholder.svg"
+                        alt={land.propertyName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://placehold.co/300x200/E0E0E0/333333?text=${encodeURIComponent(
+                            land.propertyName
+                          )}`;
+                        }}
+                      />
+                      <div className="absolute bottom-2 left-2">
+                        <Badge className="bg-green-600/80 text-white">
+                          {land.isShared ? "Fractional" : "Whole"}
                         </Badge>
-                      )}
+                      </div>
                     </div>
-                    <CardDescription className="flex items-center">
-                      <MapPin className="mr-1 h-4 w-4" />
-                      {property.location}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Area:</span>
-                        <p className="font-medium">{property.area}</p>
+
+                    <CardHeader>
+                      <CardTitle className="text-lg">
+                        {land.propertyName}
+                      </CardTitle>
+                      <CardDescription className="flex items-center">
+                        <MapPin className="mr-1 h-4 w-4" />
+                        {land.propertyAddress}
+                      </CardDescription>
+                    </CardHeader>
+
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Area:</span>
+                          <p className="font-medium">
+                            {land.totalLandArea} sq.ft
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Type:</span>
+                          <p className="font-medium">
+                            {land.isShared ? "Fractional" : "Whole Parcel"}
+                          </p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Shares:</span>
+                          <p className="font-medium">{land.totalShares}</p>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">
+                            Available:
+                          </span>
+                          <p className="font-medium">
+                            {land.availableShares}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-muted-foreground">Type:</span>
-                        <p className="font-medium">{property.type}</p>
-                      </div>
-                      {property.bedrooms > 0 && (
+
+                      {land.forSale && (
                         <>
-                          <div>
-                            <span className="text-muted-foreground">
-                              Bedrooms:
-                            </span>
-                            <p className="font-medium">{property.bedrooms}</p>
+                          <div className="text-xl font-bold text-foreground">
+                            {ethers.formatEther(land.wholePrice)} ETH
                           </div>
-                          <div>
-                            <span className="text-muted-foreground">
-                              Bathrooms:
-                            </span>
-                            <p className="font-medium">{property.bathrooms}</p>
-                          </div>
+                          <Button
+                            className={`w-full py-2 mt-2 text-white ${
+                              buying === land.id
+                                ? "bg-gray-500"
+                                : "bg-green-600 hover:bg-green-700"
+                            }`}
+                            onClick={() =>
+                              handleBuy(land.id, land.wholePrice)
+                            }
+                            disabled={buying === land.id}
+                          >
+                            {buying === land.id ? "Processing..." : "Buy Now"}
+                          </Button>
                         </>
                       )}
-                    </div>
-
-                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex items-center">
-                          <Eye className="h-4 w-4 mr-1" />
-                          {property.views}
-                        </div>
-                        <div className="flex items-center">
-                          <Heart className="h-4 w-4 mr-1" />
-                          {property.likes}
-                        </div>
-                      </div>
-                      <div className="text-xl font-bold text-foreground">
-                        {property.price}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-                      <Button
-                        className="flex-1 bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
-                        onClick={() =>
-                          handlePropertyAction(property.id, "view")
-                        }
-                      >
-                        View Details
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="flex-1 border-purple-800/20 dark:border-purple-100/20 hover:bg-purple-800/5 dark:hover:bg-purple-100/5 bg-transparent"
-                        onClick={() =>
-                          handlePropertyAction(property.id, "purchase")
-                        }
-                      >
-                        Initiate Purchase
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {filteredProperties.length === 0 && (
-              <Card className="glass border-purple-800/20 dark:border-purple-100/20">
-                <CardContent className="text-center py-12">
-                  <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-4">
-                    No properties match your current filters.
-                  </p>
-                  <Button
-                    variant="outline"
-                    className="border-purple-800/20 dark:border-purple-100/20 hover:bg-purple-800/5 dark:hover:bg-purple-100/5 bg-transparent"
-                    onClick={() => {
-                      setSearchTerm("");
-                      setLocationFilter("all");
-                      setTypeFilter("all");
-                      setStatusFilter("all");
-                      setPriceFilter("all");
-                    }}
-                  >
-                    Clear Filters
-                  </Button>
-                </CardContent>
-              </Card>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
             )}
           </div>
-        </main>
-      </div>
-    </>
-  );
+        </div>
+      </main>
+    </div>
+  </>
+);
 }
