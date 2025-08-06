@@ -1,6 +1,8 @@
 // lib/ethers.ts
 import { ethers } from "ethers";
-import abi from "./abi.json"; // ✅ Adjust path if needed
+import abi from "./LandReg.json"; // ✅ Adjust path if needed
+
+
 
 const CONTRACT_ADDRESS = "0xYourContractAddressHere"; // 🔁 Replace with deployed address
 
@@ -42,5 +44,5 @@ export const getContract = async () => {
 
   const provider = new ethers.BrowserProvider(ethereum);
   const signer = await provider.getSigner();
-  return new ethers.Contract(CONTRACT_ADDRESS, abi.abi, signer);
+  return new ethers.Contract(CONTRACT_ADDRESS, abi, signer);
 };

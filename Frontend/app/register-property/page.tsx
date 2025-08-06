@@ -12,8 +12,18 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { CheckCircle, Building2, MapPin } from "lucide-react"
 
+import { ethers } from "ethers"
+import LandRegistration1155ABI from "@/lib/LandReg.json"
+import { toast } from "sonner"
+
+const CONTRACT_ADDRESS = "0xYourContractAddressHere" // 🔁 Replace this with the actual address
+
+
+
 export default function RegisterPropertyPage() {
-  const [formData, setFormData] = useState({
+
+
+ const [formData, setFormData] = useState({
     title: "",
     address: "",
     area: "",
@@ -37,6 +47,18 @@ export default function RegisterPropertyPage() {
   const [liveCaptureImage, setLiveCaptureImage] = useState<File | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+
+  const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
+  const [signer, setSigner] = useState<ethers.Signer | null>(null);
+  const [contract, setContract] = useState<ethers.Contract | null>(null);
+
+  const [propertyAddress, setPropertyAddress] = useState('');
+  const [postalCode, setPostalCode] = useState('');
+  const [landArea, setLandArea] = useState('');
+  const [propertyName, setPropertyName] = useState('');
+
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     // Cleanup camera stream on unmount
@@ -84,6 +106,9 @@ export default function RegisterPropertyPage() {
       setIsStreaming(false)
     }
   }, [isCameraModalOpen, liveCaptureImage])
+
+
+  
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}

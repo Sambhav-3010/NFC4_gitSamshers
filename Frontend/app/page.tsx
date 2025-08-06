@@ -5,6 +5,7 @@ import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
 import { Shield, Zap, Globe, CheckCircle, ArrowRight, Building2, Lock, TrendingUp } from "lucide-react"
 
+
 export default function LandingPage() {
   const features = [
     {

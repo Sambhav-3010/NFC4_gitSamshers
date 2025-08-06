@@ -1,79 +1,81 @@
 "use client"
 
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { ethers } from "ethers"
+
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Navbar } from "@/components/navbar"
 import { Footer } from "@/components/footer"
-import { User, Building2, Plus, MapPin, Eye } from "lucide-react" // Removed Edit, Trash2
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { User, Building2, Plus, MapPin, Eye } from "lucide-react"
+import ConnectWallet from "@/components/ConnectWallet"
+
+import { connectWallet, getContract } from "@/lib/ethers"
 
 // Define the structure of a property for type safety
-interface Property {
-  id: number;
-  title: string;
-  address: string; // Renamed from 'location' for consistency with ProfilePage's mock data
-  area: string;
-  price: string;
-  status: string;
-  image: string;
-  // Added for consistency with marketplace/details page, though not all may be displayed here
-  type?: string;
-  bedrooms?: number;
-  bathrooms?: number;
-  verified?: boolean;
-  views?: number;
-  likes?: number;
-  description?: string;
-  ownerId?: string;
-  latitude?: string;
-  longitude?: string;
+interface Land {
+  id: number
+  propertyName: string
+  propertyAddress: string
+  totalLandArea: string
+  wholePrice: string
+  forSale: boolean
+  isShared: boolean
+  totalShares: number
+  availableShares: number
 }
 
 export default function ProfilePage() {
+
+  const [lands, setLands] = useState<Land[]>([])
+  const [account, setAccount] = useState<string>("")
+  const [loading, setLoading] = useState(false)
+
   const [user, setUser] = useState<any>(null)
   // Initialize properties from localStorage or use a default if localStorage is empty
-  const [properties, setProperties] = useState<Property[]>(() => {
-    if (typeof window !== 'undefined') {
-      const savedProperties = localStorage.getItem("properties");
-      // If properties exist in localStorage, parse them. Otherwise, use a default minimal set.
-      // Note: The structure here is simpler than marketplace's mockProperties,
-      // so we'll only load basic fields if they exist in localStorage.
-      if (savedProperties) {
-        const parsedProperties: Property[] = JSON.parse(savedProperties);
-        // Filter to only include properties relevant to the current user if a user ID was tracked
-        // For now, we'll just return all properties from localStorage.
-        return parsedProperties;
-      }
-    }
-    // Fallback if localStorage is not available or empty
-    return [
-      {
-        id: 1,
-        title: "Modern Villa in Gurgaon",
-        address: "Sector 45, Gurgaon, Haryana",
-        area: "3500 sq ft",
-        price: "₹2.5 Cr",
-        status: "Listed",
-        image: "/placeholder.svg?height=200&width=300&text=Villa",
-      },
-      {
-        id: 2,
-        title: "Luxury Apartment",
-        address: "Bandra West, Mumbai, Maharashtra",
-        area: "1800 sq ft",
-        price: "₹3.2 Cr",
-        status: "Sold",
-        image: "/placeholder.svg?height=200&width=300&text=Apartment",
-      },
-    ];
-  })
+  // const [properties, setProperties] = useState<Property[]>(() => {
+  //   if (typeof window !== 'undefined') {
+  //     const savedProperties = localStorage.getItem("properties");
+  //     // If properties exist in localStorage, parse them. Otherwise, use a default minimal set.
+  //     // Note: The structure here is simpler than marketplace's mockProperties,
+  //     // so we'll only load basic fields if they exist in localStorage.
+  //     if (savedProperties) {
+  //       const parsedProperties: Property[] = JSON.parse(savedProperties);
+  //       // Filter to only include properties relevant to the current user if a user ID was tracked
+  //       // For now, we'll just return all properties from localStorage.
+  //       return parsedProperties;
+  //     }
+  //   }
+  //   // Fallback if localStorage is not available or empty
+  //   return [
+  //     {
+  //       id: 1,
+  //       title: "Modern Villa in Gurgaon",
+  //       address: "Sector 45, Gurgaon, Haryana",
+  //       area: "3500 sq ft",
+  //       price: "₹2.5 Cr",
+  //       status: "Listed",
+  //       image: "/placeholder.svg?height=200&width=300&text=Villa",
+  //     },
+  //     {
+  //       id: 2,
+  //       title: "Luxury Apartment",
+  //       address: "Bandra West, Mumbai, Maharashtra",
+  //       area: "1800 sq ft",
+  //       price: "₹3.2 Cr",
+  //       status: "Sold",
+  //       image: "/placeholder.svg?height=200&width=300&text=Apartment",
+  //     },
+  //   ];
+  // })
   const router = useRouter()
   const [filterStatus, setFilterStatus] = useState("All")
 
+ // Auth check
   useEffect(() => {
     const isAuthenticated = localStorage.getItem("isAuthenticated")
     if (!isAuthenticated) {
@@ -84,28 +86,78 @@ export default function ProfilePage() {
     setUser({
       name: localStorage.getItem("userName") || "John Doe",
       email: localStorage.getItem("userEmail") || "john@example.com",
-      role: localStorage.getItem("userRole") || "buyer", // Ensure role is fetched
+      role: localStorage.getItem("userRole") || "buyer",
     })
   }, [router])
 
-  // Function to handle viewing property details
-  const handleViewDetails = (propertyId: number) => {
-    router.push(`/details/${propertyId}`);
-  };
-
-  const handleAddToMarketplace = (propertyId: number) => {
-    // In a real app, this would update the property status on the blockchain/backend
-    // For now, we'll simulate updating the status in localStorage
-    setProperties((prev) => {
-      const updatedProperties = prev.map((prop) =>
-        prop.id === propertyId ? { ...prop, status: "On Sale" } : prop
-      );
-      if (typeof window !== 'undefined') {
-        localStorage.setItem("properties", JSON.stringify(updatedProperties));
+  // Connect wallet and fetch on-chain properties
+  useEffect(() => {
+    const init = async () => {
+      const acc = await connectWallet()
+      if (acc) {
+        setAccount(acc)
+        await fetchOwnedLands(acc)
       }
-      return updatedProperties;
-    });
-  };
+    }
+    init()
+  }, [])
+
+
+  const fetchOwnedLands = async (user: string) => {
+    setLoading(true)
+    try {
+      const contract = await getContract()
+      const ids: number[] = await contract.getAllPropertyIds()
+      const results: Land[] = []
+
+      for (const id of ids) {
+        const details = await contract.getLandDetails(id)
+        const balance = await contract.balanceOf(user, id)
+        if (balance.gt(0)) {
+          results.push({ id, ...details })
+        }
+      }
+
+      setLands(results)
+    } catch (err) {
+      console.error("Error fetching owned lands:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const listWhole = async (id: number, priceWei: string) => {
+    const contract = await getContract()
+    const tx = await contract.listWhole(id, priceWei)
+    await tx.wait()
+    await fetchOwnedLands(account)
+  }
+
+  const fractionalise = async (id: number, shares: number, pricePerShareWei: string) => {
+    const contract = await getContract()
+    const tx = await contract.fractionalise(id, shares, pricePerShareWei)
+    await tx.wait()
+    await fetchOwnedLands(account)
+  }
+
+  const handleListWhole = (id: number) => {
+    const land = lands.find((l) => l.id === id)
+    if (!land) return
+    listWhole(id, land.wholePrice)
+  }
+
+  const handleListAsShares = (id: number) => {
+    const land = lands.find((l) => l.id === id)
+    if (!land) return
+    fractionalise(id, land.totalShares, ethers.parseEther("0.1").toString()) // Example price
+  }
+
+  const handleViewDetails = (id: number) => {
+    router.push(`/details/${id}`)
+  }
+
+  if (!user) return <div>Loading...</div>
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -145,7 +197,7 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
-
+            <ConnectWallet/>
           {/* User Info */}
           <div className="grid gap-6 md:grid-cols-3">
             <Card className="glass">
@@ -171,29 +223,10 @@ export default function ProfilePage() {
                   </Badge>
                 </div>
               </CardContent>
+              
             </Card>
+            
 
-            <Card className="glass">
-              <CardHeader>
-                <CardTitle>Quick Stats</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Properties Listed</span>
-                  <span className="font-medium">{properties.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Active Listings</span>
-                  <span className="font-medium">
-                    {properties.filter((p) => p.status === "Listed" || p.status === "On Sale").length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Sold Properties</span>
-                  <span className="font-medium">{properties.filter((p) => p.status === "Sold").length}</span>
-                </div>
-              </CardContent>
-            </Card>
 
             <Card className="glass">
               <CardHeader>
@@ -228,122 +261,116 @@ export default function ProfilePage() {
           </div>
 
           {/* Properties Section */}
-          <Card className="glass">
+<Card className="glass">
+  <CardHeader>
+    <div className="flex justify-between items-center">
+      <div>
+        <CardTitle className="flex items-center">
+          <Building2 className="mr-2 h-5 w-5 text-purple-800 dark:text-purple-100" />
+          My Properties
+        </CardTitle>
+        <CardDescription>Manage your registered properties</CardDescription>
+      </div>
+    </div>
+  </CardHeader>
+
+  <CardContent>
+    {lands.length === 0 ? (
+      <div className="text-center py-12">
+        <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+        <p className="text-muted-foreground mb-4">No properties registered yet.</p>
+        <Button
+          asChild
+          className="bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
+        >
+          <Link href="/register-property">Register Your First Property</Link>
+        </Button>
+      </div>
+    ) : (
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {lands.map((land) => (
+          <Card
+            key={land.id}
+            className="overflow-hidden border border-purple-800/20 dark:border-purple-100/20"
+          >
+            <div className="aspect-video bg-muted">
+              <img
+                src="/placeholder.svg"
+                alt={land.propertyName}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = `https://placehold.co/300x200/E0E0E0/333333?text=${encodeURIComponent(land.propertyName)}`;
+                }}
+              />
+            </div>
             <CardHeader>
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-start">
+                <CardTitle className="text-lg">{land.propertyName}</CardTitle>
+                <Badge className={land.isShared ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"}>
+                  {land.isShared ? "Fractional" : land.forSale ? "Listed" : "Owned"}
+                </Badge>
+              </div>
+              <CardDescription className="flex items-center">
+                <MapPin className="mr-1 h-4 w-4" />
+                {land.propertyAddress}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <CardTitle className="flex items-center">
-                    <Building2 className="mr-2 h-5 w-5 text-purple-800 dark:text-purple-100" />
-                    My Properties
-                  </CardTitle>
-                  <CardDescription>Manage your registered properties</CardDescription>
+                  <span className="text-muted-foreground">Area:</span>
+                  <p className="font-medium">{land.totalLandArea} sq.ft</p>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Select onValueChange={setFilterStatus} defaultValue="All">
-                    <SelectTrigger className="w-[180px] bg-transparent border-purple-800/20 dark:border-purple-100/20">
-                      <SelectValue placeholder="Filter by status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="All">All Properties</SelectItem>
-                      <SelectItem value="Listed">Listed</SelectItem>
-                      <SelectItem value="On Sale">On Sale</SelectItem>
-                      <SelectItem value="Sold">Sold</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    asChild
-                    className="bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
-                  >
-                    <Link href="/register-property">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add Property
-                    </Link>
-                  </Button>
+                <div>
+                  <span className="text-muted-foreground">Price:</span>
+                  <p className="font-medium">{ethers.formatEther(land.wholePrice)} ETH</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Shares:</span>
+                  <p className="font-medium">{land.totalShares}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Available:</span>
+                  <p className="font-medium">{land.availableShares}</p>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              {properties.length === 0 ? (
-                <div className="text-center py-12">
-                  <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground mb-4">No properties registered yet.</p>
-                  <Button
-                    asChild
-                    className="bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
-                  >
-                    <Link href="/register-property">Register Your First Property</Link>
-                  </Button>
-                </div>
-              ) : (
-                <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                  {properties
-                    .filter((property) => {
-                      if (filterStatus === "All") return true
-                      return property.status === filterStatus
-                    })
-                    .map((property) => (
-                      <Card
-                        key={property.id}
-                        className="overflow-hidden border border-purple-800/20 dark:border-purple-100/20"
-                      >
-                        <div className="aspect-video bg-muted">
-                          <img
-                            src={property.image || "/placeholder.svg"}
-                            alt={property.title}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = `https://placehold.co/300x200/E0E0E0/333333?text=${encodeURIComponent(property.title)}`;
-                            }}
-                          />
-                        </div>
-                        <CardHeader>
-                          <div className="flex justify-between items-start">
-                            <CardTitle className="text-lg">{property.title}</CardTitle>
-                            <Badge className={getStatusColor(property.status)}>{property.status}</Badge>
-                          </div>
-                          <CardDescription className="flex items-center">
-                            <MapPin className="mr-1 h-4 w-4" />
-                            {property.address}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Area:</span>
-                              <p className="font-medium">{property.area}</p>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Price:</span>
-                              <p className="font-medium">{property.price}</p>
-                            </div>
-                          </div>
 
-                          <div className="flex space-x-2">
-                            {property.status === "Listed" && (
-                              <Button
-                                size="sm"
-                                onClick={() => handleAddToMarketplace(property.id)}
-                                className="flex-1 bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
-                              >
-                                Add to Marketplace
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="flex-1 border-purple-800/20 dark:border-purple-100/20 bg-transparent"
-                              onClick={() => handleViewDetails(property.id)} // New: View Details button
-                            >
-                              <Eye className="h-4 w-4 mr-2" /> View Details
-                            </Button>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                </div>
-              )}
+              <div className="flex space-x-2">
+                {!land.forSale && (
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-purple-700 hover:bg-purple-800 text-white"
+                    onClick={() => handleListWhole(land.id)}
+                  >
+                    List for Sale
+                  </Button>
+                )}
+                {!land.isShared && (
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white"
+                    onClick={() => handleListAsShares(land.id)}
+                  >
+                    List as Shares
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 border-purple-800/20 dark:border-purple-100/20"
+                  onClick={() => handleViewDetails(land.id)}
+                >
+                  <Eye className="h-4 w-4 mr-2" />
+                  View Details
+                </Button>
+              </div>
             </CardContent>
           </Card>
+        ))}
+      </div>
+    )}
+  </CardContent>
+</Card>
         </div>
       </main>
 
