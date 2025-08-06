@@ -192,7 +192,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
         uint256 area,
         uint256 postal,
         string calldata name
-    ) external autoGrantRoles onlySeller returns (uint256 id) {
+    ) external autoGrantRoles  returns (uint256 id) {
 
         bytes32 hash = keccak256(abi.encodePacked(addr, area, postal, name));
         require(!propertySeen[hash], "property already registered");
