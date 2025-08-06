@@ -1,310 +1,119 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import React, { useState } from "react"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Navbar } from "@/components/navbar"
-import { Footer } from "@/components/footer"
-import { CheckCircle, Building2, MapPin } from "lucide-react" // Removed Upload, X, FileText as they are no longer needed here
+import axios from "axios"
+
+import { ethers } from "ethers"
+import LandRegistration1155ABI from "@/lib/LandReg.json"
+import { toast } from "sonner"
+
+const CONTRACT_ADDRESS = "0xYourContractAddressHere" // 🔁 Replace this with the actual address
+
+
 
 export default function RegisterPropertyPage() {
-  const [formData, setFormData] = useState({
-    title: "",
-    address: "",
-    area: "",
-    ownerId: "",
-    latitude: "",
-    longitude: "",
-    price: "",
-    description: "",
-  })
-  // Removed documents state as property image upload is now on verify-land
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState(false)
-  const [showSuccess, setShowSuccess] = useState(false)
-  const router = useRouter()
-
-  useEffect(() => {
-    const isAuthenticated = localStorage.getItem("isAuthenticated")
-    if (!isAuthenticated) {
-      // router.push("/auth/login") // Uncomment this if authentication is required before registration
-    }
-  }, [router])
-
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {}
-
-    if (!formData.title.trim()) newErrors.title = "Property title is required"
-    if (!formData.address.trim()) newErrors.address = "Address is required"
-    if (!formData.area.trim()) newErrors.area = "Area is required"
-    if (!formData.ownerId.trim()) newErrors.ownerId = "Owner ID is required"
-    if (!formData.price.trim()) newErrors.price = "Price is required"
-    if (!formData.description.trim()) newErrors.description = "Description is required"
-
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }))
-    }
-  }
-
-  // Removed handleFileUpload and removeDocument as document upload is moved
+  const [fullName, setFullName] = useState("")
+  const [govtIdNumber, setGovtIdNumber] = useState("")
+  const [aadhaarFile, setAadhaarFile] = useState<File | null>(null)
+  const [propertyDeedFile, setPropertyDeedFile] = useState<File | null>(null)
+  const [liveCaptureFile, setLiveCaptureFile] = useState<File | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!validateForm()) return
+    const formData = new FormData()
 
-    setIsLoading(true)
+    formData.append("full_name", fullName)
+    formData.append("govt_id_number", govtIdNumber)
 
-    // Simulate API call for registering property details
-    setTimeout(() => {
-      setIsLoading(false)
-      setShowSuccess(true)
+    if (aadhaarFile) {
+      formData.append("files", new File([aadhaarFile], `${fullName}_id.${aadhaarFile.name.split('.').pop()}`))
+    }
+    if (propertyDeedFile) {
+      formData.append("files", new File([propertyDeedFile], `${fullName}_deed.${propertyDeedFile.name.split('.').pop()}`))
+    }
+    if (liveCaptureFile) {
+      formData.append("files", new File([liveCaptureFile], `${fullName}_live.${liveCaptureFile.name.split('.').pop()}`))
+    }
 
-      // Store a flag in localStorage to indicate property details are submitted
-      // This can be used by /verify-land to ensure proper flow
-      localStorage.setItem("propertyDetailsSubmitted", "true")
+    try {
+      const res = await axios.post("http://localhost:8000/verify_identity", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data"
+        }
+      })
 
-      setTimeout(() => {
-        // Redirect to the verify-land page for property document upload
-        router.push("/verify-land")
-      }, 2000)
-    }, 2000)
-  }
-
-  if (showSuccess) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Navbar />
-        <div className="px-4 py-8 flex items-center justify-center min-h-[60vh]">
-          <Card className="w-full text-center glass">
-            <CardContent className="pt-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-br from-purple-800 to-purple-100 flex items-center justify-center">
-                <CheckCircle className="h-8 w-8 text-white" />
-              </div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-800 to-purple-600 bg-clip-text text-transparent mb-2">
-                Property Details Submitted!
-              </h2>
-              <p className="text-muted-foreground mb-4">
-                Your property details have been recorded. Now, let's upload the property proof.
-              </p>
-              <p className="text-sm text-muted-foreground">Redirecting to property verification...</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    )
+      console.log("Success:", res.data)
+    } catch (err: any) {
+      console.error("Error:", err.response?.data || err.message)
+    }
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-
-      <main className="px-4 py-8">
-        <div className="space-y-8">
-          {/* Header */}
-          <div className="relative overflow-hidden rounded-2xl">
-            <div className="absolute inset-0 bg-gradient-to-r from-purple-800 via-purple-600 to-purple-100"></div>
-            <div className="relative px-8 py-12">
-              <div className="flex items-center">
-                <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center mr-4">
-                  <Building2 className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold text-white mb-2">Register New Property</h1>
-                  <p className="text-purple-100">Add your property to the blockchain registry</p>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen flex items-center justify-center animated-gradient px-4 py-8">
+      <div className="w-full max-w-2xl bg-white/60 rounded-2xl shadow-xl p-8 backdrop-blur-sm">
+        <h1 className="text-3xl font-bold text-center text-purple-800 mb-6">Register Property</h1>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <Label className="text-purple-700">Full Name</Label>
+            <Input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              placeholder="Enter your full name"
+              className="mt-1"
+            />
           </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              {/* Basic Information */}
-              <Card className="glass">
-                <CardHeader>
-                  <CardTitle className="flex items-center">
-                    <Building2 className="mr-2 h-5 w-5 text-purple-800 dark:text-purple-100" />
-                    Property Details
-                  </CardTitle>
-                  <CardDescription>Basic information about your property</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="title">Property Title *</Label>
-                    <Input
-                      id="title"
-                      placeholder="e.g., Modern Villa in Gurgaon"
-                      value={formData.title}
-                      onChange={(e) => handleInputChange("title", e.target.value)}
-                      className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.title ? "border-red-500" : ""}`}
-                    />
-                    {errors.title && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.title}</AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address *</Label>
-                    <Textarea
-                      id="address"
-                      placeholder="Complete property address"
-                      rows={3}
-                      value={formData.address}
-                      onChange={(e) => handleInputChange("address", e.target.value)}
-                      className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.address ? "border-red-500" : ""}`}
-                    />
-                    {errors.address && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.address}</AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="area">Area (sq ft) *</Label>
-                      <Input
-                        id="area"
-                        placeholder="e.g., 2500"
-                        value={formData.area}
-                        onChange={(e) => handleInputChange("area", e.target.value)}
-                        className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.area ? "border-red-500" : ""}`}
-                      />
-                      {errors.area && (
-                        <Alert variant="destructive">
-                          <AlertDescription>{errors.area}</AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="price">Price *</Label>
-                      <Input
-                        id="price"
-                        placeholder="e.g., ₹2.5 Cr"
-                        value={formData.price}
-                        onChange={(e) => handleInputChange("price", e.target.value)}
-                        className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.price ? "border-red-500" : ""}`}
-                      />
-                      {errors.price && (
-                        <Alert variant="destructive">
-                          <AlertDescription>{errors.price}</AlertDescription>
-                        </Alert>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="ownerId">Owner ID *</Label>
-                    <Input
-                      id="ownerId"
-                      placeholder="Property owner identification"
-                      value={formData.ownerId}
-                      onChange={(e) => handleInputChange("ownerId", e.target.value)}
-                      className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.ownerId ? "border-red-500" : ""}`}
-                    />
-                    {errors.ownerId && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.ownerId}</AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="description">Description *</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Detailed description of the property"
-                      rows={4}
-                      value={formData.description}
-                      onChange={(e) => handleInputChange("description", e.target.value)}
-                      className={`bg-background/50 border-purple-800/20 dark:border-purple-100/20 ${errors.description ? "border-red-500" : ""}`}
-                    />
-                    {errors.description && (
-                      <Alert variant="destructive">
-                        <AlertDescription>{errors.description}</AlertDescription>
-                      </Alert>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Location Coordinates */}
-              <div className="space-y-6">
-                <Card className="glass">
-                  <CardHeader>
-                    <CardTitle className="flex items-center">
-                      <MapPin className="mr-2 h-5 w-5 text-purple-800 dark:text-purple-100" />
-                      Location Coordinates
-                    </CardTitle>
-                    <CardDescription>GPS coordinates for precise location</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="latitude">Latitude</Label>
-                        <Input
-                          id="latitude"
-                          placeholder="e.g., 28.4595"
-                          value={formData.latitude}
-                          onChange={(e) => handleInputChange("latitude", e.target.value)}
-                          className="bg-background/50 border-purple-800/20 dark:border-purple-100/20"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="longitude">Longitude</Label>
-                        <Input
-                          id="longitude"
-                          placeholder="e.g., 77.0266"
-                          value={formData.longitude}
-                          onChange={(e) => handleInputChange("longitude", e.target.value)}
-                          className="bg-background/50 border-purple-800/20 dark:border-purple-100/20"
-                        />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                {/* The "Document Upload" card is removed from here */}
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <div className="flex justify-end space-x-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="border-purple-800/20 dark:border-purple-100/20 bg-transparent"
-                onClick={() => router.back()} // Added a back button for convenience
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="bg-gradient-to-r from-purple-800 to-purple-600 hover:from-purple-700 hover:to-purple-500"
-              >
-                {isLoading ? "Submitting Details..." : "Submit Property Details"}
-              </Button>
-            </div>
-          </form>
-        </div>
-      </main>
-
-      <Footer />
+          <div>
+            <Label className="text-purple-700">Government ID Number</Label>
+            <Input
+              value={govtIdNumber}
+              onChange={(e) => setGovtIdNumber(e.target.value)}
+              required
+              placeholder="Format:XXXX XXXX XXXX"
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label className="text-purple-700">Aadhaar Image</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setAadhaarFile(e.target.files?.[0] || null)}
+              required
+              className="mt-1 cursor-pointer"
+            />
+          </div>
+          <div>
+            <Label className="text-purple-700">Property Document</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setPropertyDeedFile(e.target.files?.[0] || null)}
+              required
+              className="mt-1 cursor-pointer"
+            />
+          </div>
+          <div>
+            <Label className="text-purple-700">Live Capture</Label>
+            <Input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setLiveCaptureFile(e.target.files?.[0] || null)}
+              required
+              className="mt-1 cursor-pointer"
+            />
+          </div>
+          <Button
+            type="submit"
+            className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-fuchsia-600 hover:to-purple-700 text-white font-semibold"
+          >
+            Submit
+          </Button>
+        </form>
+      </div>
     </div>
   )
 }
