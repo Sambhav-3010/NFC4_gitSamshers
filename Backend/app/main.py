@@ -3,6 +3,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import JSONResponse
 import shutil
 from typing import List
+from fastapi.middleware.cors import CORSMiddleware
+
 
 # Import the tools
 from app.tools.vision_tools import DocumentVerifierTool, FaceVerificationTool
@@ -13,7 +15,13 @@ app = FastAPI(
     description="An API that uses AI to verify documents and match faces.",
     version="3.0.0"
 )
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Or specify your frontend URL: ["http://localhost:3000"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # --- Instantiate Tools ---
 doc_verifier = DocumentVerifierTool()
 face_verifier = FaceVerificationTool()
