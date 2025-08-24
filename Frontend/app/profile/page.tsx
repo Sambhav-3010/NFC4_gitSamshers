@@ -163,9 +163,11 @@ const fractionalise = async (id: number, shares: number, pricePerShareWei: bigin
 };
 
 const handleListAsShares = (id: number) => {
-  const land = lands.find((l) => l.id === id);
-  if (!land) return;
 
+  const land = lands.find((l) => l.id === id);
+
+  if (!land) return;
+  handleListWhole(id);
   // Ask user for desired number of shares (> 1)
   const input = prompt("Enter number of shares (>1):", "100");
   if (!input) return;
