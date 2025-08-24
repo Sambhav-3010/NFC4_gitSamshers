@@ -1,6 +1,6 @@
 "use client"
 
-
+import { parseEther } from "ethers";
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -106,17 +106,32 @@ export default function ProfilePage() {
     setLoading(true)
     try {
       const contract = await getContract()
-      const ids: number[] = await contract.getLandsByOwner(account)
+      const acc = await connectWallet()
+      const ids: bigint[] = await contract.getLandsByOwner(acc);
       const results: Land[] = []
 
-      for (const id of ids) {
-        const details = await contract.getLandDetails(id)
+      for (const idBig of ids) {
+        const [details, currentOwner, isSharedFlag, totalSharesBig, availableSharesBig, pricePerShareBig] =
+  await contract.getLandDetails(idBig);
 
-          results.push({ id, ...details })
+      // details is the Land struct; in ethers v6 it’s a tuple with named properties
+      const landItem: Land = {
+        // convert carefully; use strings if IDs may exceed 2^53
+        id: Number(idBig), // or parseInt(idBig.toString(), 10)
+        propertyName: details.propertyName ?? details[13],
+        propertyAddress: details.propertyAddress ?? details[10],
+        totalLandArea: (details.totalLandArea ?? details[11]).toString(),
+        wholePrice: (details.wholePrice ?? details[2]).toString(),
+        forSale: (details.forSale ?? details[9]) as boolean,
+        isShared: (details.isShared ?? details[14]) as boolean,
+        totalShares: Number((details.totalShares ?? details[15]).toString()),
+        availableShares: Number((details.availableShares ?? details[16]).toString()),
+      };
 
-      }
+      results.push(landItem);
+    }
 
-      setLands(results)
+    setLands(results);
     } catch (err) {
       console.error("Error fetching owned lands:", err)
     } finally {
@@ -124,31 +139,46 @@ export default function ProfilePage() {
     }
   }
 
-  const listWhole1 = async (id: number, priceWei: string) => {
-    const contract = await getContract()
-    const tx = await contract.listWhole(id, priceWei)
-    await tx.wait()
-    await fetchOwnedLands(account)
+const listWhole1 = async (id: number, priceWei: 100) => {
+  const contract = await getContract();
+  const tx = await contract.listWhole(id, priceWei);
+  await tx.wait();
+  await fetchOwnedLands(account);
+};
+
+const fractionalise = async (id: number, shares: number, pricePerShareWei: bigint) => {
+  const contract = await getContract();
+  const tx = await contract.fractionalise(id, shares, pricePerShareWei);
+  await tx.wait();
+  await fetchOwnedLands(account);
+};
+
+ const handleListWhole = async (id: number) => {
+  const land = lands.find((l) => l.id === id);
+  if (!land) return;
+
+  // If land.wholePrice is in ETH like "0.10", convert to wei
+  
+  await listWhole1(id, 100);
+};
+
+const handleListAsShares = (id: number) => {
+  const land = lands.find((l) => l.id === id);
+  if (!land) return;
+
+  // Ask user for desired number of shares (> 1)
+  const input = prompt("Enter number of shares (>1):", "100");
+  if (!input) return;
+  const shares = Number(input);
+  if (!Number.isInteger(shares) || shares <= 1) {
+    alert("Shares must be an integer greater than 1");
+    return;
   }
 
-  const fractionalise = async (id: number, shares: number, pricePerShareWei: string) => {
-    const contract = await getContract()
-    const tx = await contract.fractionalise(id, shares, pricePerShareWei)
-    await tx.wait()
-    await fetchOwnedLands(account)
-  }
-
-  const handleListWhole = (id: number) => {
-    const land = lands.find((l) => l.id === id)
-    if (!land) return
-    listWhole1(id, land.wholePrice)
-  }
-
-  const handleListAsShares = (id: number) => {
-    const land = lands.find((l) => l.id === id)
-    if (!land) return
-    fractionalise(id, land.totalShares, ethers.parseEther("0.1").toString()) // Example price
-  }
+  // Price per share in ETH; convert to wei
+  const pricePerShareWei = ethers.parseEther("0.1"); // or prompt for price per share
+  fractionalise(id, shares, pricePerShareWei);
+};
 
   const handleViewDetails = (id: number) => {
     router.push(`/details/${id}`)
