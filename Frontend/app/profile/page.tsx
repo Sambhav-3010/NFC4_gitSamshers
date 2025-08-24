@@ -5,7 +5,6 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { ethers } from "ethers"
-
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -107,15 +106,14 @@ export default function ProfilePage() {
     setLoading(true)
     try {
       const contract = await getContract()
-      const ids: number[] = await contract.getAllPropertyIds()
+      const ids: number[] = await contract.getLandsByOwner(account)
       const results: Land[] = []
 
       for (const id of ids) {
         const details = await contract.getLandDetails(id)
-        const balance = await contract.balanceOf(user, id)
-        if (balance.gt(0)) {
+
           results.push({ id, ...details })
-        }
+
       }
 
       setLands(results)
@@ -126,7 +124,7 @@ export default function ProfilePage() {
     }
   }
 
-  const listWhole = async (id: number, priceWei: string) => {
+  const listWhole1 = async (id: number, priceWei: string) => {
     const contract = await getContract()
     const tx = await contract.listWhole(id, priceWei)
     await tx.wait()
@@ -143,7 +141,7 @@ export default function ProfilePage() {
   const handleListWhole = (id: number) => {
     const land = lands.find((l) => l.id === id)
     if (!land) return
-    listWhole(id, land.wholePrice)
+    listWhole1(id, land.wholePrice)
   }
 
   const handleListAsShares = (id: number) => {
@@ -323,7 +321,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Price:</span>
-                  <p className="font-medium">{ethers.formatEther(land.wholePrice)} ETH</p>
+                  
                 </div>
                 <div>
                   <span className="text-muted-foreground">Shares:</span>

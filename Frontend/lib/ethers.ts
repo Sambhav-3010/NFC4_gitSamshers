@@ -4,11 +4,12 @@ import abi from "./LandReg.json"; // ✅ Adjust path if needed
 
 
 
-const CONTRACT_ADDRESS = "0xYourContractAddressHere"; // 🔁 Replace with deployed address
+const CONTRACT_ADDRESS:any = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS; // 🔁 Replace with deployed address
 
 declare global {
   interface Window {
     ethereum?: any;
+
   }
 }
 
