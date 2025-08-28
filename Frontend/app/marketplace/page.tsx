@@ -247,25 +247,54 @@ export default function MarketplacePage() {
     try {
       const contract = await getContract();
       const ids: number[] = await contract.getPropertiesForSale();
+      
+      // Get the current user's wallet address once before the loop
+// Get the current user's wallet address
+const user = await connectWallet();
 
-      const landList: Land[] = await Promise.all(
-        ids.map(async (id: number) => {
-          const details = await contract.getMarketplaceDetails(id);
-          return {
-            id,
-            propertyAddress: details[0],
-            totalLandArea: Number(details[1]),
-            propertyName: details[2],
-            forSale: details[3],
-            wholePrice: Number(details[4]),
-            isShared: details[5],
-            totalShares: Number(details[6]),
-            availableShares: Number(details[7]),
-            pricePerShare: Number(details[8]),
-          };
-        })
-      );
+let landList: Land[] = [];
 
+if (user) {
+  landList = (await Promise.all(
+    ids.map(async (id: number) => {
+      const ownerAddress = await contract.getLandDetails(id);
+
+      // --- START DEBUGGING LOGS ---
+      console.log(`--- Checking Land ID: ${id} ---`);
+
+      console.log("Owner result from contract:", ownerAddress[1]);
+
+      console.log("Current user address:", user);
+      
+      // Assuming ownerResult might be an object or array, let's get the string
+      // Adjust this line based on what you see in the logs!
+      
+      const isOwner = ownerAddress[1].toLowerCase()==user.toLowerCase();
+     
+      console.log("Is current user the owner?", isOwner);
+      // --- END DEBUGGING LOGS ---
+
+      if (isOwner) {
+        return null; // Don't show this land
+      }
+      
+      const details = await contract.getMarketplaceDetails(id);
+      return {
+        id,
+        propertyAddress: details[0],
+        totalLandArea: Number(details[1]),
+        propertyName: details[2],
+        forSale: details[3],
+        wholePrice: Number(details[4]),
+        isShared: details[5],
+        totalShares: Number(details[6]),
+        availableShares: Number(details[7]),
+        pricePerShare: Number(details[8]),
+      };
+    })
+  )).filter((land): land is Land => land !== null);
+}
+      
       setLands(landList);
     } catch (err) {
       console.error("Error loading properties:", err);
@@ -274,14 +303,40 @@ export default function MarketplacePage() {
     }
   };
 
-    const handleBuy = async (landId: number, price: number) => {
+    const handleBuy = async (landId: number, price: number, pps: number) => {
     try {
+      
       const contract = await getContract();
+      const details = await contract.getMarketplaceDetails(landId);
       setBuying(landId);
+      if(details[7]==0)
+      {
       const tx = await contract.buyWhole(landId, { value: price });
       await tx.wait();
       alert("Land purchased successfully!");
       fetchAllProperties(); // Refresh list
+      }
+      else
+      {
+       const input = prompt("Enter number of shares to buy :");
+        if(!input) throw new Error("Invalid input");
+        const shares = parseInt(input);
+        if(isNaN(shares) || shares<1 || shares>details[7]) throw new Error("Invalid number of shares");
+
+        const ppsBigInt = BigInt(pps);
+        const sharesBigInt = BigInt(shares);
+
+        // 2. The result will also be a BigInt, which is what ethers expects
+        const totalCostInWei = ppsBigInt * sharesBigInt;
+        
+        const tx = await contract.buyShares(landId, shares, {
+        value: totalCostInWei 
+        });
+
+  await tx.wait();
+        alert("Shares purchased successfully!");
+      fetchAllProperties(); // Refresh list
+      }
     } catch (err) {
       console.error("Error buying land:", err);
       alert("Failed to buy land.");
@@ -303,7 +358,7 @@ export default function MarketplacePage() {
   return (
   <>
     <Navbar />
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background ">
       <main className="p-6">
         <div className="space-y-6">
           {/* Header */}
@@ -416,12 +471,13 @@ export default function MarketplacePage() {
                                 : "bg-green-600 hover:bg-green-700"
                             }`}
                             onClick={() =>
-                              handleBuy(land.id, land.wholePrice)
+                              handleBuy(land.id, land.wholePrice,land.pricePerShare)
                             }
                             disabled={buying === land.id}
                           >
                             {buying === land.id ? "Processing..." : "Buy Now"}
                           </Button>
+                          
                         </>
                       )}
                     </CardContent>

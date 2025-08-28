@@ -171,7 +171,7 @@ export default function VerifyPage() {
   }, [idProofStatus, propertyProofStatus])
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative overflow-hidden ">
       <div className="absolute inset-0 animated-gradient opacity-90"></div>
 
 

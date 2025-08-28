@@ -462,6 +462,7 @@ contract LandRegistration1155 is ERC1155, AccessControl {
             ownedIds[i] = tempIds[i];
         }
         
+        
         return ownedIds;
     }
 
