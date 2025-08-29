@@ -9,9 +9,9 @@ import axios from "axios"
 import { ethers } from "ethers"
 import LandRegistration1155ABI from "@/lib/LandReg.json"
 import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
-const CONTRACT_ADDRESS = "0xYourContractAddressHere" // 🔁 Replace this with the actual address
-
+const CONTRACT_ADDRESS = "0xYourContractAddressHere"
 
 
 export default function RegisterPropertyPage() {
@@ -20,6 +20,7 @@ export default function RegisterPropertyPage() {
   const [aadhaarFile, setAadhaarFile] = useState<File | null>(null)
   const [propertyDeedFile, setPropertyDeedFile] = useState<File | null>(null)
   const [liveCaptureFile, setLiveCaptureFile] = useState<File | null>(null)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -46,8 +47,12 @@ export default function RegisterPropertyPage() {
       })
 
       console.log("Success:", res.data)
+      router.push('/success')
+      toast.success("Property registered successfully!")
     } catch (err: any) {
       console.error("Error:", err.response?.data || err.message)
+      toast.error("Failed to register property. Please try again.")
+      router.push('/reject')
     }
   }
 
