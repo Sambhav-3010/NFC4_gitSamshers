@@ -224,7 +224,17 @@ const handleListAsShares = (id: number) => {
     router.push(`/details/${id}`)
   }
 
-
+const handleshares = async (id: number) => {
+  try{
+    const contract = await getContract();
+    const tx = await contract.defragmentLand(id);
+    await tx.wait();
+     await fetchOwnedLands(account);
+  }
+  catch(err){
+    console.error("Error defragmenting land:", err);
+  }
+};
 
 const handleBuy = async (landId: number) => {
   try {
@@ -538,7 +548,18 @@ const handleBuy = async (landId: number) => {
                 <p className="font-medium">{fraction.isShared ? fraction.availableShares : (fraction.forSale ? "1" : "0")}</p>
               </div>
             </div>
+            {/* defragment shares of the same property */}
             <div className="flex space-x-2">
+              {fraction.isShared && fraction.availableShares === 0 && (
+                <Button
+                  size="sm"
+                  className="flex-1 bg-purple-700 hover:bg-purple-800 text-white"
+                  onClick={() => handleshares(fraction.id)}
+                >
+                  Defragment Shares
+                </Button>
+              )}
+              {fraction.isShared && fraction.availableShares > 0 && (
               <Button
                 size="sm"
                 className="flex-1 bg-purple-700 hover:bg-purple-800 text-white"
@@ -546,6 +567,7 @@ const handleBuy = async (landId: number) => {
               >
                 Buy Now
               </Button>
+      )}
               <Button
                 size="sm"
                 variant="outline"
@@ -560,6 +582,7 @@ const handleBuy = async (landId: number) => {
         </Card>
       ))}
     </div>
+    
   )}
 </CardContent>
 </Card>
