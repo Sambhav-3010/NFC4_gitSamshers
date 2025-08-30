@@ -183,9 +183,8 @@ const listWhole1 = async (id: number, price: number) => {
   await fetchOwnedLands(account);
 };
 
-const fractionalise = async (id: number, shares: number, pricePerShareWei: bigint) => {
+const fractionalise = async (id: number, shares: number, pricePerShareWei: number) => {
   const contract = await getContract();
-   const ethValue = ethers.formatEther(pricePerShareWei);
   const tx = await contract.fractionalise(id, shares, pricePerShareWei);
   await tx.wait();
   await fetchOwnedLands(account);
@@ -218,8 +217,7 @@ const handleListAsShares = (id: number) => {
   // Price per share in ETH; convert to wei
   const pps = prompt("Enter price per share in ETH:");
   if(!pps) return; 
-  const ppsAsBigInt = BigInt(pps);
-  fractionalise(id, shares, ppsAsBigInt);
+  fractionalise(id, shares, Number(pps));
 };
 
   const handleViewDetails = (id: number) => {
@@ -442,7 +440,7 @@ const handleBuy = async (landId: number) => {
               </div>
               <div>
                 <span className="text-muted-foreground">Price:</span>
-                <p></p>
+                <p className="font-medium">{land.wholePrice}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Shares:</span>
@@ -454,7 +452,7 @@ const handleBuy = async (landId: number) => {
               </div>
             </div>
             <div className="flex space-x-2">
-              {!land.forSale && (
+              {!land.forSale && !land.isShared && (
                 <Button
                   size="sm"
                   className="flex-1 bg-purple-700 hover:bg-purple-800 text-white"
@@ -463,7 +461,7 @@ const handleBuy = async (landId: number) => {
                   List for Sale
                 </Button>
               )}
-              {!land.isShared && (
+              {land.forSale && !land.isShared && (
                 <Button
                   size="sm"
                   className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white"
